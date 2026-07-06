@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import {
   BadgeCheckIcon,
@@ -154,7 +154,7 @@ export default function DashboardStoreSetupPage() {
   const [origin, setOrigin] = useState("")
   const templateImportInputRef = useRef<HTMLInputElement | null>(null)
 
-  async function loadState() {
+  const loadState = useCallback(async () => {
     setLoading(true)
     try {
       const [nextProfile, nextSetupStatus, nextTemplates] = await Promise.all([
@@ -165,40 +165,45 @@ export default function DashboardStoreSetupPage() {
       setProfile(nextProfile)
       setSetupStatus(nextSetupStatus)
       setTemplates(nextTemplates)
-      const [nextMaintenanceStatus, nextKnowledgeAssistant, nextTemplateEffect] = await Promise.all([
+      const [nextMaintenanceStatus, nextKnowledgeAssistant, nextTemplateEffect] = await Promise.allSettled([
         fetchDigitalStoreMaintenanceStatus(),
         fetchDigitalStoreKnowledgeAssistant(),
         fetchDigitalStoreTemplateEffect(),
       ])
-      setMaintenanceStatus(nextMaintenanceStatus)
-      setKnowledgeAssistant(nextKnowledgeAssistant)
-      setTemplateEffect(nextTemplateEffect)
+      setMaintenanceStatus(nextMaintenanceStatus.status === "fulfilled" ? nextMaintenanceStatus.value : null)
+      setKnowledgeAssistant(nextKnowledgeAssistant.status === "fulfilled" ? nextKnowledgeAssistant.value : null)
+      setTemplateEffect(nextTemplateEffect.status === "fulfilled" ? nextTemplateEffect.value : null)
+      const optionalResults = [nextMaintenanceStatus, nextKnowledgeAssistant, nextTemplateEffect]
+      optionalResults.forEach((result) => {
+        if (result.status === "rejected") {
+          console.warn("[store-setup] optional setup panel failed", result.reason)
+        }
+      })
       if (origin) {
-        const nextReport = await fetchDigitalStoreDeliveryReport(origin)
-        setDeliveryReport(nextReport)
-        setLatestDeliveryRecord(nextReport.latestRecord || null)
+        try {
+          const nextReport = await fetchDigitalStoreDeliveryReport(origin)
+          setDeliveryReport(nextReport)
+          setLatestDeliveryRecord(nextReport.latestRecord || null)
+        } catch (error) {
+          setDeliveryReport(null)
+          setLatestDeliveryRecord(null)
+          console.warn("[store-setup] delivery report failed", error)
+        }
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "加载初始化状态失败")
     } finally {
       setLoading(false)
     }
-  }
+  }, [origin])
 
   useEffect(() => {
     void loadState()
-  }, [])
+  }, [loadState])
 
   useEffect(() => {
     setOrigin(window.location.origin)
   }, [])
-
-  useEffect(() => {
-    if (origin) {
-      void loadState()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin])
 
   async function runAction(
     key: string,

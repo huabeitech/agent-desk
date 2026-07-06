@@ -144,9 +144,21 @@ export type SupportChatStore = {
 }
 
 let bootstrapToken = 0
+const SEND_SYNC_DELAYS_MS = [2000, 6000, 12000, 25000]
 
 function t(key: string) {
   return translateCurrentMessage(key)
+}
+
+function scheduleLatestMessageSync(sync: () => Promise<void>) {
+  if (typeof window === "undefined") {
+    return
+  }
+  SEND_SYNC_DELAYS_MS.forEach((delay) => {
+    window.setTimeout(() => {
+      void sync()
+    }, delay)
+  })
 }
 
 export const useSupportChatStore = create<SupportChatStore>((set, get) => {
@@ -514,6 +526,7 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
               }
             : null,
         }))
+        scheduleLatestMessageSync(get().syncLatestMessages)
       } catch (error) {
         set({
           sending: false,

@@ -1351,27 +1351,32 @@ export function DashboardHome() {
         setLoading(true)
       }
       try {
-        const [
-          overviewResult,
-          reportResult,
-          aiQualityResult,
-          salesFunnelResult,
-          businessTrendResult,
-          abTestResult,
-        ] = await Promise.all([
-          fetchDashboardOverview(nextRange),
-          fetchDailyBusinessReport(),
-          fetchAIQualityReport(nextRange),
-          fetchSalesFunnelReport(nextRange),
-          fetchBusinessTrendReport(nextRange),
-          fetchABTestReport(nextRange),
-        ])
-        setData(overviewResult)
-        setDailyReport(reportResult)
-        setAIQualityReport(aiQualityResult)
-        setSalesFunnelReport(salesFunnelResult)
-        setBusinessTrendReport(businessTrendResult)
-        setABTestReport(abTestResult)
+        const [overviewResult, reportResult, aiQualityResult, salesFunnelResult, businessTrendResult, abTestResult] =
+          await Promise.allSettled([
+            fetchDashboardOverview(nextRange),
+            fetchDailyBusinessReport(),
+            fetchAIQualityReport(nextRange),
+            fetchSalesFunnelReport(nextRange),
+            fetchBusinessTrendReport(nextRange),
+            fetchABTestReport(nextRange),
+          ])
+        if (overviewResult.status === "fulfilled") {
+          setData(overviewResult.value)
+        } else {
+          setData(null)
+          toast.error(overviewResult.reason instanceof Error ? overviewResult.reason.message : t("dashboardHome.loadFailed"))
+        }
+        setDailyReport(reportResult.status === "fulfilled" ? reportResult.value : null)
+        setAIQualityReport(aiQualityResult.status === "fulfilled" ? aiQualityResult.value : null)
+        setSalesFunnelReport(salesFunnelResult.status === "fulfilled" ? salesFunnelResult.value : null)
+        setBusinessTrendReport(businessTrendResult.status === "fulfilled" ? businessTrendResult.value : null)
+        setABTestReport(abTestResult.status === "fulfilled" ? abTestResult.value : null)
+        const optionalResults = [reportResult, aiQualityResult, salesFunnelResult, businessTrendResult, abTestResult]
+        optionalResults.forEach((result) => {
+          if (result.status === "rejected") {
+            console.warn("[dashboard] optional report failed", result.reason)
+          }
+        })
       } catch (error) {
         toast.error(error instanceof Error ? error.message : t("dashboardHome.loadFailed"))
       } finally {

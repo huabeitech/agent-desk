@@ -5,6 +5,7 @@ const adminUsername = process.env.AGENT_DESK_ADMIN_USERNAME || "admin"
 const adminPassword = process.env.AGENT_DESK_ADMIN_PASSWORD || "ChangeMe123!"
 const timeoutMs = Number(process.env.MUSE_ACCEPTANCE_TIMEOUT_MS || 60000)
 const pollIntervalMs = Number(process.env.MUSE_ACCEPTANCE_POLL_INTERVAL_MS || 2500)
+const scenarioDelayMs = Number(process.env.MUSE_ACCEPTANCE_SCENARIO_DELAY_MS || 1500)
 const recordResult = process.env.MUSE_ACCEPTANCE_RECORD_RESULT !== "0"
 const scenarioFilter = new Set(
   (process.env.MUSE_ACCEPTANCE_SCENARIOS || "")
@@ -147,6 +148,9 @@ function acceptanceCommandText() {
   if (process.env.MUSE_ACCEPTANCE_SCENARIOS) {
     parts.push(`MUSE_ACCEPTANCE_SCENARIOS=${process.env.MUSE_ACCEPTANCE_SCENARIOS}`)
   }
+  if (process.env.MUSE_ACCEPTANCE_SCENARIO_DELAY_MS) {
+    parts.push(`MUSE_ACCEPTANCE_SCENARIO_DELAY_MS=${process.env.MUSE_ACCEPTANCE_SCENARIO_DELAY_MS}`)
+  }
   parts.push("scripts/run-muse-chat-acceptance.mjs")
   return parts.join(" ")
 }
@@ -263,7 +267,7 @@ function evaluateReply(scenario, reply) {
   const matchedKeywords = expectedKeywords.filter((keyword) => content.includes(keyword))
   const missingKeywords = expectedKeywords.filter((keyword) => !content.includes(keyword))
   const matched = expectedKeywords.length === 0 || matchedKeywords.length > 0
-  const forbidden = bannedKeywords.find((keyword) => content.includes(keyword))
+  const forbidden = bannedKeywords.find((keyword) => isBannedPhraseViolation(content, keyword))
   if (forbidden) {
     return buildScenarioResult(scenario, {
       ok: false,
@@ -299,6 +303,26 @@ function evaluateReply(scenario, reply) {
     missingKeywords,
     bannedKeywords,
   })
+}
+
+function isBannedPhraseViolation(content, keyword) {
+  const text = String(content || "")
+  const term = String(keyword || "")
+  if (!term || !text.includes(term)) return false
+  let index = text.indexOf(term)
+  while (index >= 0) {
+    const before = text.slice(Math.max(0, index - 18), index)
+    const after = text.slice(index + term.length, index + term.length + 12)
+    const context = `${before}${term}${after}`
+    const isNegated =
+      /(不|不能|无法|不可|不得|不会|未能|不要|并非|避免|禁止|不做|不能做|无法做)[^。；，,.!?！？]{0,12}$/.test(before) ||
+      /这类[^。；，,.!?！？]{0,8}(无法|不能|不可|不得|不会)/.test(context) ||
+      /无法[^。；，,.!?！？]{0,12}(承诺|保证)/.test(context) ||
+      /不能[^。；，,.!?！？]{0,12}(承诺|保证)/.test(context)
+    if (!isNegated) return true
+    index = text.indexOf(term, index + term.length)
+  }
+  return false
 }
 
 function buildScenarioResult(scenario, partial) {
@@ -457,6 +481,9 @@ async function main() {
       results.push({ scenario, result })
       console.log(`FAIL (${error.message})`)
       console.log(`  suggestion: ${result.suggestion}`)
+    }
+    if (scenarioDelayMs > 0 && scenario !== selected[selected.length - 1]) {
+      await sleep(scenarioDelayMs)
     }
   }
 

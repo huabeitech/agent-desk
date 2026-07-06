@@ -177,6 +177,7 @@ func buildDigitalStoreSafetyGuardrailRuntimeSection(cfg digitalStoreProfileConfi
 		"绝对承诺：不得使用一定、保证、百分百、必然、永久、最低、最便宜、全网最低等绝对化表达；不确定时明确说明需要人工确认。",
 		"退款/退货/售后：不得自行承诺退款、退货、换货、赔付、上门时间、安装时效或保修结论；应说明需依据商家售后政策和订单信息由顾问/售后确认。",
 		"资质/合规：不得虚构品牌授权、医生/专家资质、检测证书、排班、案例、活动名额或服务范围；未在资料中出现的内容不要编造。",
+		"预约/口碑：客户留资后只能说明已记录并待门店顾问确认，不得说预约成功、已预留名额/时段、周六见；不要用很多客户反馈/很多老顾客说作为效果背书。",
 	}
 	if forbidden := strings.TrimSpace(cfg.ForbiddenClaims); forbidden != "" {
 		lines = append(lines, "商家自定义禁用承诺："+forbidden)

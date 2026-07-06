@@ -66,6 +66,31 @@ func TestExtractLeadInfoAppointmentDetails(t *testing.T) {
 	}
 }
 
+func TestExtractLeadInfoElectricBedAppointmentDetails(t *testing.T) {
+	info := extractLeadInfo("我姓李，电话13900001234，周六下午两点到徐汇店，两个人，预算两万，想重点试老人电动床。")
+	if !info.HasSignal {
+		t.Fatalf("expected lead signal")
+	}
+	if info.Phone != "13900001234" || info.CustomerName != "李" {
+		t.Fatalf("unexpected contact info: %#v", info)
+	}
+	if !strings.Contains(info.InterestedProducts, "老人电动床") {
+		t.Fatalf("expected electric bed product, got %q", info.InterestedProducts)
+	}
+	if info.AppointmentStore == "" || !strings.Contains(info.AppointmentStore, "徐汇") {
+		t.Fatalf("expected Xuhui store, got %#v", info)
+	}
+	if info.AppointmentPeople != 2 {
+		t.Fatalf("expected 2 appointment people, got %#v", info)
+	}
+	if info.AppointmentAt == nil || info.AppointmentAt.Weekday() != time.Saturday || info.AppointmentAt.Hour() != 14 {
+		t.Fatalf("expected Saturday 14:00 appointment, got %#v", info.AppointmentAt)
+	}
+	if info.BuyingStage != enums.SalesLeadStageAppointment || info.IntentLevel != enums.SalesLeadIntentHigh {
+		t.Fatalf("unexpected stage/intent: %#v", info)
+	}
+}
+
 func TestExtractLeadInfoBudgetQuestion(t *testing.T) {
 	info := extractLeadInfo("老人腰不好，床垫是不是越硬越好？预算1.5万，推荐哪种？")
 	if !info.HasSignal {

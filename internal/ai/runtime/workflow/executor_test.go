@@ -295,6 +295,49 @@ func TestUnderstandConversationMessageDoesNotTreatRiskQuestionAsConfirmation(t *
 	}
 }
 
+func TestUnderstandConversationMessageRoutesShortRetailNeedToKnowledge(t *testing.T) {
+	tests := []string{
+		"我腰疼",
+		"太软",
+		"老人起夜",
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			got := understandConversationMessage(tt)
+			if got.MessageIntent != "business_question" || got.AnswerScope != "needs_knowledge" {
+				t.Fatalf("expected retail need to need knowledge, got %#v", got)
+			}
+		})
+	}
+}
+
+func TestWorkflowClarificationReplyUsesRetailLanguage(t *testing.T) {
+	got := decideWorkflowReplyPolicy(models.AIAgent{}, workflowReplyPolicyInput{
+		MessageIntent: "ambiguous_question",
+		AnswerScope:   "needs_clarification",
+	})
+	if !strings.Contains(got.ReplyText, "睡眠困扰") || strings.Contains(got.ReplyText, "报错信息") {
+		t.Fatalf("expected retail clarification reply, got %q", got.ReplyText)
+	}
+}
+
+func TestUnderstandConversationMessageRoutesIdentityQuestionToDirectReply(t *testing.T) {
+	got := understandConversationMessage("你是谁")
+	if got.MessageIntent != "identity" || got.AnswerScope != "direct_reply" {
+		t.Fatalf("expected identity direct reply, got %#v", got)
+	}
+}
+
+func TestWorkflowIdentityReplyAnswersRole(t *testing.T) {
+	got := decideWorkflowReplyPolicy(models.AIAgent{Name: "慕小眠"}, workflowReplyPolicyInput{
+		MessageIntent: "identity",
+		AnswerScope:   "direct_reply",
+	})
+	if !strings.Contains(got.ReplyText, "慕小眠") || !strings.Contains(got.ReplyText, "慕斯寝具") || !strings.Contains(got.ReplyText, "睡眠顾问") {
+		t.Fatalf("expected concrete identity reply, got %q", got.ReplyText)
+	}
+}
+
 func TestUnderstandConversationMessageStillRecognizesShortConfirmation(t *testing.T) {
 	got := understandConversationMessage("好的")
 	if got.MessageIntent != "confirmation" || got.AnswerScope != "direct_reply" {

@@ -433,6 +433,11 @@ func understandConversationMessage(rawMessage string) workflowConversationUnders
 	}
 	lower := strings.ToLower(message)
 	switch {
+	case isIdentityWorkflowQuestion(lower):
+		ret.MessageIntent = "identity"
+		ret.AnswerScope = "direct_reply"
+		ret.Confidence = 0.94
+		ret.Reason = "matched identity question"
 	case isGreetingMessage(lower):
 		ret.MessageIntent = "greeting"
 		ret.AnswerScope = "direct_reply"
@@ -471,6 +476,11 @@ func understandConversationMessage(rawMessage string) workflowConversationUnders
 		ret.AnswerScope = "needs_knowledge"
 		ret.Confidence = 0.86
 		ret.Reason = "matched knowledge seeking question"
+	case isRetailNeedWorkflowMessage(lower):
+		ret.MessageIntent = "business_question"
+		ret.AnswerScope = "needs_knowledge"
+		ret.Confidence = 0.84
+		ret.Reason = "matched retail consultation need"
 	case isConfirmationWorkflowMessage(lower):
 		ret.MessageIntent = "confirmation"
 		ret.AnswerScope = "direct_reply"
@@ -502,6 +512,8 @@ func decideWorkflowReplyPolicy(aiAgent models.AIAgent, input workflowReplyPolicy
 		}
 	}
 	switch {
+	case intent == "identity":
+		return workflowReplyPolicyDecision{Action: "direct_reply", ReplyText: workflowIdentityReply(aiAgent), Reason: "identity question can be answered directly", FinalReplySource: "direct_reply"}
 	case intent == "greeting":
 		return workflowReplyPolicyDecision{Action: "direct_reply", ReplyText: "您好，请问有什么可以帮您？", Reason: "greeting can be answered directly", FinalReplySource: "direct_reply"}
 	case intent == "thanks":
@@ -515,12 +527,20 @@ func decideWorkflowReplyPolicy(aiAgent models.AIAgent, input workflowReplyPolicy
 	case intent == "ticket_request" || scope == "needs_ticket":
 		return workflowReplyPolicyDecision{Action: "prepare_ticket", Reason: "user requested ticket handling", RequiresFlow: true, TargetFlow: "prepare_ticket", FinalReplySource: "ticket_result"}
 	case intent == "ambiguous_question" || scope == "needs_clarification":
-		return workflowReplyPolicyDecision{Action: "clarify", ReplyText: "请补充具体的产品、场景、报错信息或你希望处理的结果，我再继续帮你确认。", Reason: "message needs clarification", FinalReplySource: "clarification"}
+		return workflowReplyPolicyDecision{Action: "clarify", ReplyText: "我在的。你可以直接说睡眠困扰、预算、给谁用，或者想看的床垫/电动床款式，我就按你的情况帮你推荐。", Reason: "message needs clarification", FinalReplySource: "clarification"}
 	case scope == "needs_knowledge":
 		return workflowReplyPolicyDecision{Action: "retrieve_knowledge", Reason: "business question should be answered with knowledge evidence", RequiresFlow: true, TargetFlow: "knowledge", FinalReplySource: "knowledge_answer"}
 	default:
 		return workflowReplyPolicyDecision{Action: "clarify", ReplyText: "请补充更具体的问题，我再继续帮你处理。", Reason: "fallback to clarification for unclear policy input", FinalReplySource: "clarification"}
 	}
+}
+
+func workflowIdentityReply(aiAgent models.AIAgent) string {
+	name := strings.TrimSpace(aiAgent.Name)
+	if name == "" {
+		name = "慕小眠"
+	}
+	return "我是" + name + "，慕斯寝具的在线睡眠顾问，可以帮你挑床垫、电动床、预约试躺，也能把价格、库存、售后这类需要确认的事转给门店顾问。"
 }
 
 func normalizeWorkflowUserMessage(value string) string {
@@ -539,6 +559,17 @@ func isGreetingMessage(value string) bool {
 	return containsAnyWorkflowText(trimmed, "你好", "您好", "在吗", "在不在") || trimmed == "hello" || trimmed == "hi"
 }
 
+func isIdentityWorkflowQuestion(value string) bool {
+	trimmed := strings.Trim(value, " 	\r\n。.!！?？~～")
+	if trimmed == "" {
+		return false
+	}
+	return containsAnyWorkflowText(trimmed,
+		"你是谁", "你是干嘛", "你是做什么", "你叫什么", "你叫啥", "你是什么",
+		"机器人吗", "真人吗", "你听得懂吗", "你能干嘛", "你会什么",
+	)
+}
+
 func isAmbiguousWorkflowQuestion(value string) bool {
 	trimmed := strings.Trim(value, " 	\r\n。.!！?？~～")
 	return containsAnyWorkflowText(trimmed, "怎么弄", "怎么办", "怎么处理", "帮我看看", "有问题") || len([]rune(trimmed)) <= 3
@@ -552,6 +583,21 @@ func isKnowledgeSeekingWorkflowQuestion(value string) bool {
 	return containsAnyWorkflowText(trimmed,
 		"?", "？", "吗", "呢", "么", "是不是", "是否", "能不能", "能否", "可不可以", "为什么", "怎么", "如何", "哪", "哪个", "哪种", "什么",
 		"推荐", "适合", "价格", "多少钱", "多少", "预算", "型号", "产品", "功能", "区别", "对比", "活动", "优惠",
+	)
+}
+
+func isRetailNeedWorkflowMessage(value string) bool {
+	trimmed := strings.Trim(value, " 	\r\n。.!！?？~～")
+	if trimmed == "" {
+		return false
+	}
+	return containsAnyWorkflowText(trimmed,
+		"腰疼", "腰痛", "腰酸", "腰不好", "背疼", "背痛", "护脊", "脊椎", "颈椎",
+		"睡觉疼", "睡觉累", "睡不好", "睡不着", "失眠", "翻身", "起夜", "打鼾", "怕热",
+		"床垫", "床", "电动床", "枕头", "寝具", "软床", "硬床", "软一点", "硬一点", "太软", "太硬",
+		"老人", "爸", "妈", "父母", "孩子", "儿童", "孕妇", "夫妻", "主卧", "次卧",
+		"侧睡", "仰睡", "趴睡", "试躺", "到店", "预约", "徐汇", "门店", "电话", "微信",
+		"现货", "有货", "库存", "退货", "退款", "退换", "质保", "异响", "预算",
 	)
 }
 

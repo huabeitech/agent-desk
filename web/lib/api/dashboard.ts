@@ -400,7 +400,9 @@ export function fetchDashboardOverview(range: DashboardRange) {
 
 export function fetchDailyBusinessReport(date?: string) {
   const query = date ? `?date=${encodeURIComponent(date)}` : ""
-  return request<DashboardDailyBusinessReport>(`/api/dashboard/business-report/daily${query}`)
+  return request<DashboardDailyBusinessReport>(`/api/dashboard/business-report/daily${query}`).then(
+    normalizeDashboardDailyBusinessReport
+  )
 }
 
 export function sendDailyBusinessReport(date?: string) {
@@ -436,4 +438,59 @@ export function fetchABTestReport(range: DashboardRange = "7d") {
   return request<DashboardABTestReport>(
     `/api/dashboard/business-report/ab-tests?range=${range}`
   )
+}
+
+function normalizeDashboardDailyBusinessReport(value: DashboardDailyBusinessReport): DashboardDailyBusinessReport {
+  const report = value as Partial<DashboardDailyBusinessReport>
+  return {
+    ...report,
+    reportDate: report.reportDate || "",
+    conversationCount: numberOrZero(report.conversationCount),
+    aiReplyCount: numberOrZero(report.aiReplyCount),
+    handoffCount: numberOrZero(report.handoffCount),
+    leadCount: numberOrZero(report.leadCount),
+    leadConversionRate: numberOrZero(report.leadConversionRate),
+    highIntentCount: numberOrZero(report.highIntentCount),
+    appointmentCount: numberOrZero(report.appointmentCount),
+    convertedCount: numberOrZero(report.convertedCount),
+    unresolvedCount: numberOrZero(report.unresolvedCount),
+    unassignedPriorityLeadCount: numberOrZero(report.unassignedPriorityLeadCount),
+    overdueFollowUpCount: numberOrZero(report.overdueFollowUpCount),
+    todayFollowUpCount: numberOrZero(report.todayFollowUpCount),
+    unscheduledHotLeads: numberOrZero(report.unscheduledHotLeads),
+    overdueAppointmentCount: numberOrZero(report.overdueAppointmentCount),
+    todayAppointmentCount: numberOrZero(report.todayAppointmentCount),
+    unscheduledAppointmentCount: numberOrZero(report.unscheduledAppointmentCount),
+    pendingAfterSalesTicketCount: numberOrZero(report.pendingAfterSalesTicketCount),
+    todayAfterSalesTicketCount: numberOrZero(report.todayAfterSalesTicketCount),
+    todayHandledAfterSalesTicketCount: numberOrZero(report.todayHandledAfterSalesTicketCount),
+    aiFeedbackCount: numberOrZero(report.aiFeedbackCount),
+    aiFeedbackLikeCount: numberOrZero(report.aiFeedbackLikeCount),
+    aiFeedbackNegativeCount: numberOrZero(report.aiFeedbackNegativeCount),
+    aiFeedbackNegativeRate: numberOrZero(report.aiFeedbackNegativeRate),
+    activeProductCount: numberOrZero(report.activeProductCount),
+    activePromotionCount: numberOrZero(report.activePromotionCount),
+    topLeadProducts: arrayOrEmpty(report.topLeadProducts),
+    topQuestions: arrayOrEmpty(report.topQuestions),
+    unansweredQuestions: arrayOrEmpty(report.unansweredQuestions),
+    topAiFeedbackReasons: arrayOrEmpty(report.topAiFeedbackReasons),
+    recentNegativeAiFeedbacks: arrayOrEmpty(report.recentNegativeAiFeedbacks),
+    pendingFaqDraftCount: numberOrZero(report.pendingFaqDraftCount),
+    pendingFaqDrafts: arrayOrEmpty(report.pendingFaqDrafts),
+    highIntentLeads: arrayOrEmpty(report.highIntentLeads),
+    priorityFollowUps: arrayOrEmpty(report.priorityFollowUps),
+    afterSalesTickets: arrayOrEmpty(report.afterSalesTickets),
+    summary: report.summary || "暂无日报摘要",
+    highlights: arrayOrEmpty(report.highlights),
+    followUpSuggestions: arrayOrEmpty(report.followUpSuggestions),
+    knowledgeSuggestions: arrayOrEmpty(report.knowledgeSuggestions),
+  }
+}
+
+function arrayOrEmpty<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : []
+}
+
+function numberOrZero(value: number | null | undefined): number {
+  return Number.isFinite(value) ? Number(value) : 0
 }

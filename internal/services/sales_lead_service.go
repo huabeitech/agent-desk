@@ -1776,10 +1776,10 @@ func extractLeadBudget(text string) (int64, int64) {
 
 func extractAppointmentTime(text string) (*time.Time, string) {
 	text = strings.TrimSpace(text)
-	if text == "" || !containsAnyLeadText(text, "预约", "到店", "试躺", "去店", "去门店", "看看", "体验") {
+	timeText := firstRegexpMatch(leadTimePattern, text, 0)
+	if text == "" || (!containsAnyLeadText(text, "预约", "到店", "试躺", "去店", "去门店", "看看", "体验") && !hasImplicitAppointmentTimeSignal(text, timeText)) {
 		return nil, ""
 	}
-	timeText := firstRegexpMatch(leadTimePattern, text, 0)
 	if match := leadDatePattern.FindStringSubmatch(text); len(match) > 3 {
 		year := time.Now().Year()
 		if match[1] != "" {
@@ -1800,7 +1800,17 @@ func extractAppointmentTime(text string) (*time.Time, string) {
 			return &at, strings.TrimSpace(timeText)
 		}
 	}
+	if at := appointmentRelativeDateFromText(timeText); at != nil {
+		hour := appointmentHourFromText(timeText)
+		resolved := time.Date(at.Year(), at.Month(), at.Day(), hour, 0, 0, 0, time.Local)
+		return &resolved, strings.TrimSpace(timeText)
+	}
 	return nil, strings.TrimSpace(timeText)
+}
+
+func hasImplicitAppointmentTimeSignal(text string, timeText string) bool {
+	return strings.TrimSpace(timeText) != "" &&
+		containsAnyLeadText(text, "店", "门店", "徐汇", "试", "过去", "到")
 }
 
 func extractAppointmentPeople(text string) int {
@@ -1817,6 +1827,10 @@ func extractAppointmentStore(text string) string {
 	if store := firstRegexpMatch(leadStorePattern, text, 1); store != "" {
 		return store
 	}
+	switch {
+	case containsAnyLeadText(text, "徐汇"):
+		return "徐汇门店"
+	}
 	return ""
 }
 
@@ -1829,6 +1843,9 @@ func extractAppointmentRemark(text string) string {
 }
 
 func appointmentHourFromText(value string) int {
+	if hour := explicitAppointmentHour(value); hour > 0 {
+		return hour
+	}
 	switch {
 	case strings.Contains(value, "上午"), strings.Contains(value, "早上"):
 		return 10
@@ -1839,6 +1856,86 @@ func appointmentHourFromText(value string) int {
 	default:
 		return 14
 	}
+}
+
+func appointmentRelativeDateFromText(value string) *time.Time {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	switch {
+	case containsAnyLeadText(value, "今天"):
+		return &today
+	case containsAnyLeadText(value, "明天"):
+		ret := today.AddDate(0, 0, 1)
+		return &ret
+	case containsAnyLeadText(value, "后天"):
+		ret := today.AddDate(0, 0, 2)
+		return &ret
+	case containsAnyLeadText(value, "周末", "这周末", "本周末"):
+		ret := nextWeekday(today, time.Saturday)
+		return &ret
+	case containsAnyLeadText(value, "周一", "星期一"):
+		ret := nextWeekday(today, time.Monday)
+		return &ret
+	case containsAnyLeadText(value, "周二", "星期二"):
+		ret := nextWeekday(today, time.Tuesday)
+		return &ret
+	case containsAnyLeadText(value, "周三", "星期三"):
+		ret := nextWeekday(today, time.Wednesday)
+		return &ret
+	case containsAnyLeadText(value, "周四", "星期四"):
+		ret := nextWeekday(today, time.Thursday)
+		return &ret
+	case containsAnyLeadText(value, "周五", "星期五"):
+		ret := nextWeekday(today, time.Friday)
+		return &ret
+	case containsAnyLeadText(value, "周六", "星期六"):
+		ret := nextWeekday(today, time.Saturday)
+		return &ret
+	case containsAnyLeadText(value, "周日", "星期日", "星期天"):
+		ret := nextWeekday(today, time.Sunday)
+		return &ret
+	default:
+		return nil
+	}
+}
+
+func nextWeekday(today time.Time, target time.Weekday) time.Time {
+	days := (int(target) - int(today.Weekday()) + 7) % 7
+	if days == 0 {
+		days = 7
+	}
+	return today.AddDate(0, 0, days)
+}
+
+func explicitAppointmentHour(value string) int {
+	if match := regexp.MustCompile(`(\d{1,2})\s*[点:]`).FindStringSubmatch(value); len(match) > 1 {
+		if hour, err := strconv.Atoi(match[1]); err == nil {
+			return normalizeAppointmentHour(hour, value)
+		}
+	}
+	if match := regexp.MustCompile(`([一二两三四五六七八九十])点`).FindStringSubmatch(value); len(match) > 1 {
+		return normalizeAppointmentHour(chineseDigitValue(match[1]), value)
+	}
+	return 0
+}
+
+func normalizeAppointmentHour(hour int, value string) int {
+	if hour <= 0 {
+		return 0
+	}
+	if strings.Contains(value, "下午") || strings.Contains(value, "晚上") || strings.Contains(value, "晚间") || strings.Contains(value, "傍晚") {
+		if hour < 12 {
+			hour += 12
+		}
+	}
+	if hour > 23 {
+		return 0
+	}
+	return hour
 }
 
 func parseLeadTimePtr(value string) *time.Time {
@@ -1891,7 +1988,7 @@ func chineseDigitValue(value string) int {
 }
 
 func extractInterestedProducts(text string) string {
-	keywords := []string{"床垫", "枕头", "乳胶枕", "护脊", "儿童床垫", "静音分区", "脊护支撑款", "云感舒睡款", "旗舰款", "1.8米", "1.5米"}
+	keywords := []string{"老人电动床", "智能电动床", "电动床组合", "电动床", "床垫", "枕头", "乳胶枕", "护脊", "儿童床垫", "静音分区", "脊护支撑款", "云感舒睡款", "旗舰款", "1.8米", "1.5米"}
 	var found []string
 	seen := map[string]struct{}{}
 	for _, keyword := range keywords {
@@ -1908,7 +2005,7 @@ func extractInterestedProducts(text string) string {
 
 func inferLeadBuyingStage(text string) enums.SalesLeadStage {
 	switch {
-	case containsAnyLeadText(text, "预约", "到店", "试躺", "周末", "明天去", "今天去"):
+	case containsAnyLeadText(text, "预约", "到店", "试躺", "周末", "明天去", "今天去", "周一", "周二", "周三", "周四", "周五", "周六", "周日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"):
 		return enums.SalesLeadStageAppointment
 	case containsAnyLeadText(text, "售后", "安装", "质保", "异响", "退换", "投诉", "退款", "退货", "不满意", "差评"):
 		return enums.SalesLeadStageAfterSales

@@ -1133,6 +1133,13 @@ func (s *digitalStoreProfileService) BuildModelHealthChecks(status response.Digi
 	checks := []response.DigitalStoreHealthCheckResponse{}
 	if status.LLMConfigID > 0 {
 		checks = append(checks, buildDigitalStoreHealthCheck("llm", "聊天模型", "ok", "已启用聊天模型："+valueOrDefault(status.LLMConfigName, fmt.Sprintf("#%d", status.LLMConfigID))))
+		if aiConfig := repositories.AIConfigRepository.Get(sqls.DB(), status.LLMConfigID); aiConfig != nil {
+			if aiConfig.TimeoutMS < 90000 || aiConfig.MaxRetryCount < 2 {
+				checks = append(checks, buildDigitalStoreHealthCheck("llm_runtime", "聊天模型稳定性", "warning", fmt.Sprintf("当前超时 %dms、重试 %d 次；商用交付建议超时不少于 90000ms 且重试不少于 2 次，并保留 AI 失败兜底回复。", aiConfig.TimeoutMS, aiConfig.MaxRetryCount)))
+			} else {
+				checks = append(checks, buildDigitalStoreHealthCheck("llm_runtime", "聊天模型稳定性", "ok", fmt.Sprintf("超时 %dms、重试 %d 次，满足连续咨询验收建议。", aiConfig.TimeoutMS, aiConfig.MaxRetryCount)))
+			}
+		}
 	} else {
 		checks = append(checks, buildDigitalStoreHealthCheck("llm", "聊天模型", "blocking", "未启用聊天模型，数字店长无法生成客户回复。"))
 	}
@@ -2515,6 +2522,7 @@ func (s *digitalStoreProfileService) ensureAgent(cfg digitalStoreProfileConfig, 
 	name := defaultDigitalStoreAgentName(cfg)
 	desiredPrompt := defaultDigitalStoreAgentPrompt(cfg)
 	desiredWelcome := defaultDigitalStoreWelcomeMessage(cfg)
+	desiredFallback := defaultDigitalStoreFallbackMessage(cfg)
 	desiredTeamIDs := normalizeDigitalStoreAgentTeamIDs("", defaultTeamID)
 	agent := s.findDigitalStoreAgent(cfg)
 	if agent == nil {
@@ -2532,7 +2540,7 @@ func (s *digitalStoreProfileService) ensureAgent(cfg digitalStoreProfileConfig, 
 			TeamIDs:             desiredTeamIDs,
 			HandoffMode:         enums.AIAgentHandoffModeWaitPool,
 			FallbackMode:        enums.AIAgentFallbackModeNoAnswer,
-			FallbackMessage:     "这个问题我需要让门店顾问进一步确认，可以为你转人工或先留下联系方式。",
+			FallbackMessage:     desiredFallback,
 			KnowledgeIDs:        []int64{cfg.KnowledgeBaseID},
 		}, operator)
 	}
@@ -2542,7 +2550,8 @@ func (s *digitalStoreProfileService) ensureAgent(cfg digitalStoreProfileConfig, 
 		agent.KnowledgeIDs != fmt.Sprint(cfg.KnowledgeBaseID) ||
 		agent.TeamIDs != utils.JoinInt64s(desiredTeamIDs) ||
 		strings.TrimSpace(agent.SystemPrompt) != desiredPrompt ||
-		strings.TrimSpace(agent.WelcomeMessage) != desiredWelcome {
+		strings.TrimSpace(agent.WelcomeMessage) != desiredWelcome ||
+		strings.TrimSpace(agent.FallbackMessage) != desiredFallback {
 		if err := AIAgentService.UpdateAIAgent(request.UpdateAIAgentRequest{
 			ID: agent.ID,
 			CreateAIAgentRequest: request.CreateAIAgentRequest{
@@ -2556,7 +2565,7 @@ func (s *digitalStoreProfileService) ensureAgent(cfg digitalStoreProfileConfig, 
 				TeamIDs:             desiredTeamIDs,
 				HandoffMode:         enums.AIAgentHandoffModeWaitPool,
 				FallbackMode:        enums.AIAgentFallbackModeNoAnswer,
-				FallbackMessage:     valueOrDefault(agent.FallbackMessage, "这个问题我需要让门店顾问进一步确认，可以为你转人工或先留下联系方式。"),
+				FallbackMessage:     desiredFallback,
 				KnowledgeIDs:        []int64{cfg.KnowledgeBaseID},
 			},
 		}, operator); err != nil {
@@ -3292,6 +3301,16 @@ func defaultDigitalStoreAgentPrompt(cfg digitalStoreProfileConfig) string {
 	if style := strings.TrimSpace(cfg.ReplyStyle); style != "" {
 		lines = append(lines, "回复风格："+style)
 	}
+	lines = append(lines, "对客户短句要会补全意图：例如“我腰疼”“睡觉累”“太软”“老人起夜”都按睡眠困扰或导购需求处理，不要机械要求客户补充产品、场景或报错。")
+	lines = append(lines, "回复要像门店顾问自然接话：先接住客户情绪和真实需求，再给1-2个可选方向，最后只追问最关键的1-2个问题。不要一次抛出过长清单。")
+	lines = append(lines, "客户只说一句短需求时，第一轮回复控制在80-150个中文字符；不要分点、不要大标题、不要一次报多个方案和完整价格清单。先自然接话，主推一个方向，再问1个关键问题。")
+	lines = append(lines, "客户表达不满、催促或说“没反应”时，先道歉并说明我在，然后直接继续解决上一条需求，不要责怪客户或重复泛泛介绍。")
+	lines = append(lines, "客户问“你是谁”“你会什么”“你听得懂吗”时，先正面回答身份和能力，再自然引导到睡眠、床垫、电动床、预约或转人工。")
+	lines = append(lines, "轻闲聊可以短接一句，不要马上生硬拒绝；一句话回应后再自然拉回睡眠顾问职责。")
+	lines = append(lines, "不要把产品适用人群扩写成客户已经表达的病症；客户没说腰疼，就不要说“你提到腰疼”。")
+	lines = append(lines, "用户留资或预约后，先复述已知信息，缺什么只问缺什么；不要重复追问用户已说过的尺寸、人数、预算、产品或到店时间。")
+	lines = append(lines, "未在知识库、产品库、活动库或门店配置明确出现的信息，不要说“保证、最适合、马上安排、彻底解决、24小时内、30天试睡、礼包”等承诺；价格、库存、活动、退换、售后和联系时效都以门店顾问或订单条款确认为准。")
+	lines = append(lines, "预约留资只能说“已记录，待门店顾问确认”，不要说“预约成功”“已预留名额/时段”“周六见”；不要用“很多客户反馈/很多老顾客说”当效果背书。")
 	if forbidden := strings.TrimSpace(cfg.ForbiddenClaims); forbidden != "" {
 		lines = append(lines, "禁止承诺："+forbidden)
 	}
@@ -3304,6 +3323,10 @@ func defaultDigitalStoreWelcomeMessage(cfg digitalStoreProfileConfig) string {
 	manager := valueOrDefault(cfg.AIManagerName, "AI数字店长")
 	brand := valueOrDefault(cfg.BrandName, "本店")
 	return fmt.Sprintf("你好，我是%s，可以帮你了解%s产品、活动、预约试用和门店服务。你可以告诉我预算、使用场景或睡眠困扰，我来帮你推荐。", manager, brand)
+}
+
+func defaultDigitalStoreFallbackMessage(cfg digitalStoreProfileConfig) string {
+	return "我在的。你可以直接说预算、尺寸、使用人群或现在遇到的睡眠问题，我会先给可执行的产品方向；如果涉及最终价格、库存、活动、退换或售后结论，再由门店顾问确认。"
 }
 
 func defaultDigitalStoreWebChannelName(cfg digitalStoreProfileConfig) string {
