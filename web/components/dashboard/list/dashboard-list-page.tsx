@@ -26,7 +26,9 @@ import {
 import type {
   DashboardCrudPageResult,
   DashboardCrudQueryFilter,
+  DashboardCrudQueryValue,
 } from "@/components/dashboard/crud"
+import { buildDashboardCrudQuery } from "@/components/dashboard/crud"
 import {
   useDashboardPagedList,
   type DashboardPagedListOptions,
@@ -56,6 +58,7 @@ export type DashboardListColumn<TItem> = {
 export type DashboardListRenderContext<TItem> = {
   result: DashboardCrudPageResult<TItem>
   loading: boolean
+  query: Record<string, DashboardCrudQueryValue>
   reload: () => Promise<void>
   resetFilters: () => void
 }
@@ -110,6 +113,12 @@ export function DashboardListPage<TItem>({
   const renderContext: DashboardListRenderContext<TItem> = {
     result: list.result,
     loading: list.loading,
+    query: buildDashboardCrudQuery({
+      values: list.appliedFilters,
+      filters,
+      page: list.page,
+      limit: list.limit,
+    }),
     reload: list.loadData,
     resetFilters: list.resetFilters,
   }

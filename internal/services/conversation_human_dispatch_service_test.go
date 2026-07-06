@@ -38,11 +38,24 @@ func TestConversationHumanDispatchAIHandoffOffHoursKeepsAIServingAndSendsNotice(
 		t.Fatalf("expected handoffAt to stay nil, got %v", current.HandoffAt)
 	}
 
+	var lead models.SalesLead
+	if err := db.Where("conversation_id = ?", conversation.ID).First(&lead).Error; err != nil {
+		t.Fatalf("expected off-hours handoff lead: %v", err)
+	}
+	if lead.OwnerUserID != 0 || lead.NextFollowUpAt == nil || lead.SourceChannel != "off_hours_handoff" {
+		t.Fatalf("unexpected off-hours lead: %+v", lead)
+	}
+	if lead.Status != enums.SalesLeadStatusNew || lead.IntentLevel != enums.SalesLeadIntentMedium {
+		t.Fatalf("expected new medium-intent follow-up lead, got %+v", lead)
+	}
+
 	message := services.MessageService.FindOne(sqls.NewCnd().Eq("conversation_id", conversation.ID).Desc("id"))
 	if message == nil {
 		t.Fatalf("expected off-hours notice message")
 	}
-	if message.SenderType != enums.IMSenderTypeAI || !strings.Contains(message.Content, "Human support is currently outside service hours") {
+	if message.SenderType != enums.IMSenderTypeAI ||
+		(!strings.Contains(message.Content, "Human support is currently outside service hours") &&
+			!strings.Contains(message.Content, "当前不在人工客服服务时间内")) {
 		t.Fatalf("unexpected off-hours message: %+v", message)
 	}
 }
@@ -181,6 +194,66 @@ func TestConversationAutoAssignManualDispatchFallsBackToTeamPool(t *testing.T) {
 	}
 }
 
+func TestConversationResumeAIConversationReturnsActiveConversationToAI(t *testing.T) {
+	db := setupConversationHumanDispatchTestDB(t)
+	aiAgent := createHumanDispatchAIAgent(t, db, enums.IMConversationServiceModeAIFirst, "1")
+	conversation := createHumanDispatchConversation(t, db, aiAgent.ID, enums.IMConversationStatusActive)
+	if err := db.Model(&models.Conversation{}).Where("id = ?", conversation.ID).Updates(map[string]any{
+		"current_assignee_id": int64(101),
+		"current_team_id":     int64(1),
+	}).Error; err != nil {
+		t.Fatalf("update conversation assignment: %v", err)
+	}
+	if err := db.Create(&models.ConversationAssignment{
+		ConversationID: conversation.ID,
+		ToUserID:       101,
+		AssignType:     string(enums.IMAssignmentTypeAssign),
+		Reason:         "人工接管",
+		Status:         enums.IMAssignmentStatusActive,
+		CreatedAt:      time.Now(),
+		OperatorID:     101,
+	}).Error; err != nil {
+		t.Fatalf("create assignment: %v", err)
+	}
+
+	err := services.ConversationService.ResumeAIConversation(conversation.ID, "处理完成", &dto.AuthPrincipal{UserID: 101, Username: "agent"})
+	if err != nil {
+		t.Fatalf("ResumeAIConversation() error = %v", err)
+	}
+	current := services.ConversationService.Get(conversation.ID)
+	if current.Status != enums.IMConversationStatusAIServing || current.CurrentAssigneeID != 0 || current.CurrentTeamID != 0 {
+		t.Fatalf("expected ai-serving conversation without assignee, got %+v", current)
+	}
+	var assignment models.ConversationAssignment
+	if err := db.Where("conversation_id = ?", conversation.ID).First(&assignment).Error; err != nil {
+		t.Fatalf("load assignment: %v", err)
+	}
+	if assignment.Status != enums.IMAssignmentStatusInactive || assignment.FinishedAt == nil {
+		t.Fatalf("expected finished assignment, got %+v", assignment)
+	}
+	var event models.ConversationEventLog
+	if err := db.Where("conversation_id = ? AND content = ?", conversation.ID, "恢复 AI 接待").First(&event).Error; err != nil {
+		t.Fatalf("expected resume ai event: %v", err)
+	}
+}
+
+func TestConversationResumeAIConversationRejectsHumanOnlyConversation(t *testing.T) {
+	db := setupConversationHumanDispatchTestDB(t)
+	aiAgent := createHumanDispatchAIAgent(t, db, enums.IMConversationServiceModeHumanOnly, "1")
+	conversation := createHumanDispatchConversation(t, db, aiAgent.ID, enums.IMConversationStatusActive)
+	if err := db.Model(&models.Conversation{}).Where("id = ?", conversation.ID).Updates(map[string]any{
+		"service_mode":        enums.IMConversationServiceModeHumanOnly,
+		"current_assignee_id": int64(101),
+	}).Error; err != nil {
+		t.Fatalf("update conversation service mode: %v", err)
+	}
+
+	err := services.ConversationService.ResumeAIConversation(conversation.ID, "处理完成", &dto.AuthPrincipal{UserID: 101, Username: "agent"})
+	if err == nil {
+		t.Fatalf("expected human-only conversation to reject resume ai")
+	}
+}
+
 func setupConversationHumanDispatchTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
@@ -213,6 +286,7 @@ func setupConversationHumanDispatchTestDB(t *testing.T) *gorm.DB {
 		&models.ConversationEventLog{},
 		&models.ConversationReadState{},
 		&models.Message{},
+		&models.SalesLead{},
 		&models.ChannelMessageOutbox{},
 	); err != nil {
 		t.Fatalf("auto migrate error = %v", err)

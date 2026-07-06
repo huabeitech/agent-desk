@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
@@ -47,6 +47,10 @@ function convertContent(mode: ContentMode, raw: string) {
   return htmlToMarkdown(raw)
 }
 
+function subscribeMounted() {
+  return () => undefined
+}
+
 export function ContentEditor({
   value,
   onChange,
@@ -59,15 +63,11 @@ export function ContentEditor({
   const t = useI18n()
   const editorHeight = normalizeHeight(height)
   const [fullscreen, setFullscreen] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const mounted = useSyncExternalStore(subscribeMounted, () => true, () => false)
   const normalizedAllowedModes = allowedModes.length > 0 ? allowedModes : CONTENT_MODE_OPTIONS
   const activeMode = normalizedAllowedModes.includes(value.mode)
     ? value.mode
     : normalizedAllowedModes[0]
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   useEffect(() => {
     if (!fullscreen) {

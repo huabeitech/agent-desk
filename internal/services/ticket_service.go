@@ -287,6 +287,39 @@ func (s *ticketService) CreateFromConversation(req request.CreateTicketFromConve
 	}, operator)
 }
 
+func (s *ticketService) EnsureAfterSalesTicketFromConversation(conversation models.Conversation, title string, description string) (*models.Ticket, error) {
+	if conversation.ID <= 0 {
+		return nil, errorsx.InvalidParamI18n("error.e0116")
+	}
+	existing := repositories.TicketRepository.FindOne(sqls.DB(), sqls.NewCnd().
+		Where("conversation_id = ?", conversation.ID).
+		Where("status <> ?", enums.TicketStatusDone).
+		Desc("id"))
+	if existing != nil {
+		return existing, nil
+	}
+	operator := &dto.AuthPrincipal{UserID: 0, Username: "system", Nickname: "system"}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = "售后/投诉风险待处理"
+	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = strings.TrimSpace(conversation.LastMessageSummary)
+	}
+	if description == "" {
+		description = title
+	}
+	return s.CreateTicket(request.CreateTicketRequest{
+		Title:          title,
+		Description:    description,
+		Source:         string(enums.TicketSourceConversation),
+		Channel:        s.resolveConversationChannel(&conversation),
+		CustomerID:     conversation.CustomerID,
+		ConversationID: conversation.ID,
+	}, operator)
+}
+
 func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *dto.AuthPrincipal) error {
 	if operator == nil {
 		return errorsx.UnauthorizedI18n("error.auth.expired")

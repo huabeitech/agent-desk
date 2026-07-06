@@ -7,6 +7,9 @@ data/
 config/config.yaml
 include/
 lib/
+!web/lib/
+!web/lib/api/
+!web/lib/api/config.ts
 
 dist/
 __debug_bin*

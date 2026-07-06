@@ -1,5 +1,6 @@
 "use client"
 
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -37,6 +38,10 @@ const KNOWLEDGE_BASE_LIST_DEFAULT_WIDTH = 320
 
 export default function DashboardKnowledgeDocumentsPage() {
   const t = useI18n()
+  const searchParams = useSearchParams()
+  const preferredKnowledgeBaseId = Number(searchParams.get("knowledgeBaseId") || 0) || null
+  const focusedRetrieveLogId = Number(searchParams.get("retrieveLogId") || 0) || null
+  const focusedFaqId = Number(searchParams.get("faqId") || 0) || null
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBase | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarResizing, setSidebarResizing] = useState(false)
@@ -54,7 +59,9 @@ export default function DashboardKnowledgeDocumentsPage() {
     )
   })
   const [debugPanelOpen, setDebugPanelOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState("documents")
+  const [activeTab, setActiveTab] = useState(() =>
+    searchParams.get("tab") === "retrieveLogs" || focusedRetrieveLogId ? "retrieveLogs" : "documents"
+  )
   const [documentActionState, setDocumentActionState] = useState<DocumentListActionState | null>(null)
   const [faqActionState, setFAQActionState] = useState<FAQListActionState | null>(null)
   const [exportingFAQ, setExportingFAQ] = useState(false)
@@ -63,6 +70,24 @@ export default function DashboardKnowledgeDocumentsPage() {
   useEffect(() => {
     localStorage.setItem(KNOWLEDGE_BASE_LIST_WIDTH_STORAGE_KEY, String(sidebarWidth))
   }, [sidebarWidth])
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "retrieveLogs" || focusedRetrieveLogId) {
+      setActiveTab("retrieveLogs")
+    } else if (searchParams.get("tab") === "documents" || focusedFaqId) {
+      setActiveTab("documents")
+    }
+  }, [focusedFaqId, focusedRetrieveLogId, searchParams])
+
+  useEffect(() => {
+    if (
+      preferredKnowledgeBaseId &&
+      selectedKnowledgeBase &&
+      selectedKnowledgeBase.id !== preferredKnowledgeBaseId
+    ) {
+      setSelectedKnowledgeBase(null)
+    }
+  }, [preferredKnowledgeBaseId, selectedKnowledgeBase])
 
   function handleSidebarResizePointerDown(event: PointerEvent<HTMLDivElement>) {
     event.preventDefault()
@@ -121,6 +146,7 @@ export default function DashboardKnowledgeDocumentsPage() {
       >
         <KnowledgeBaseList
           selectedKnowledgeBaseId={selectedKnowledgeBase?.id ?? null}
+          preferredKnowledgeBaseId={preferredKnowledgeBaseId}
           onSelectKnowledgeBase={setSelectedKnowledgeBase}
         />
         {!sidebarCollapsed ? (
@@ -264,6 +290,7 @@ export default function DashboardKnowledgeDocumentsPage() {
             {isFAQKnowledgeBase ? (
               <FAQList
                 knowledgeBaseId={selectedKnowledgeBase?.id ?? null}
+                focusedFaqId={focusedFaqId}
                 onActionStateChange={setFAQActionState}
               />
             ) : (
@@ -276,6 +303,7 @@ export default function DashboardKnowledgeDocumentsPage() {
           <TabsContent value="retrieveLogs" className="min-h-0 flex-1">
             <RetrieveLogList
               knowledgeBaseId={selectedKnowledgeBase?.id ?? null}
+              focusedRetrieveLogId={focusedRetrieveLogId}
             />
           </TabsContent>
         </Tabs>

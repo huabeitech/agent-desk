@@ -222,6 +222,13 @@ export function transferAgentConversation(
   })
 }
 
+export function resumeAIConversation(conversationId: number, reason: string) {
+  return request<void>("/api/dashboard/conversation/resume_ai", {
+    method: "POST",
+    body: JSON.stringify({ conversationId, reason }),
+  })
+}
+
 export function linkConversationToCustomer(payload: {
   conversationId: number
   customerId: number

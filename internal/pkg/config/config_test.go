@@ -50,6 +50,9 @@ mcp:
   servers:
     system:
       endpoint: http://127.0.0.1:8083/api/mcp
+notify:
+  dailyReport:
+    allowDuplicate: false
 `)
 	if err := os.WriteFile(path, content, 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -58,6 +61,7 @@ mcp:
 	t.Setenv("AGENT_DESK_DB_DSN", "mysql-dsn")
 	t.Setenv("AGENT_DESK_STORAGE_LOCAL_BASEURL", "/files")
 	t.Setenv("AGENT_DESK_MCP_SERVERS_SYSTEM_ENDPOINT", "http://127.0.0.1:8090/api/mcp")
+	t.Setenv("AGENT_DESK_NOTIFY_DAILYREPORT_ALLOWDUPLICATE", "true")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -78,5 +82,8 @@ mcp:
 	}
 	if cfg.MCP.Servers["system"].Endpoint != "http://127.0.0.1:8090/api/mcp" {
 		t.Fatalf("MCP system endpoint=%q", cfg.MCP.Servers["system"].Endpoint)
+	}
+	if !cfg.Notify.DailyReport.AllowDuplicate {
+		t.Fatal("Notify.DailyReport.AllowDuplicate=false want true")
 	}
 }

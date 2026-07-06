@@ -105,6 +105,35 @@ mcp:
       # Extra HTTP headers sent to this MCP server on every request, for example Authorization or tenant headers.
       headers: {}
 
+notify:
+  webhook:
+    # Generic outbound webhook for high-intent leads, appointment leads, and human-handoff/assignment alerts.
+    # Keep disabled unless a merchant-specific endpoint is configured.
+    enabled: false
+    # Endpoint examples: a self-hosted CRM receiver, n8n webhook, WeCom group robot, DingTalk robot, or Feishu bot.
+    url: ""
+    # Supported values:
+    # - generic/json: {"eventType","title","content","text","metadata","timestamp"}
+    # - wecom_robot/dingtalk/text: {"msgtype":"text","text":{"content":"..."}}
+    # - feishu/lark: {"msg_type":"text","content":{"text":"..."}}
+    format: generic
+    # Optional HMAC-SHA256 signing secret for self-hosted receivers.
+    # When set, requests include X-Agent-Desk-Timestamp and X-Agent-Desk-Signature headers.
+    secret: ""
+    # Request timeout in milliseconds. Values <= 0 fall back to 5000.
+    timeoutMs: 5000
+    # Optional static headers, for example Authorization for a self-hosted receiver.
+    headers: {}
+  dailyReport:
+    # Whether to send the daily business report to the configured notify.webhook on a schedule.
+    enabled: false
+    # Standard 5-field cron expression. Default: 09:00 every day.
+    cron: "0 9 * * *"
+    # 0 sends today's report; -1 sends yesterday's report.
+    dateOffsetDays: 0
+    # false prevents the scheduled job from sending the same report date more than once.
+    allowDuplicate: false
+
 oidc:
   # Whether to enable OIDC login. This system acts as the OIDC client.
   enabled: false

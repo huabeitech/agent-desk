@@ -1,9 +1,12 @@
 package cronx
 
 import (
+	"agent-desk/internal/pkg/config"
 	"agent-desk/internal/services"
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/robfig/cron/v3"
 )
@@ -28,6 +31,8 @@ func Init() {
 		}
 	})
 
+	addDailyBusinessReportJob(c)
+
 	c.Start()
 }
 
@@ -35,4 +40,29 @@ func addFunc(c *cron.Cron, sepc string, cmd func()) {
 	if _, err := c.AddFunc(sepc, cmd); err != nil {
 		slog.Error("add cron func error", slog.Any("err", err))
 	}
+}
+
+func addDailyBusinessReportJob(c *cron.Cron) {
+	cfg := config.Current()
+	dailyCfg := cfg.Notify.DailyReport
+	if !dailyCfg.Enabled {
+		return
+	}
+	spec := strings.TrimSpace(dailyCfg.Cron)
+	if spec == "" {
+		spec = "0 9 * * *"
+	}
+	addFunc(c, spec, func() {
+		reportDate := time.Now().AddDate(0, 0, dailyCfg.DateOffsetDays).Format(time.DateOnly)
+		resp, err := services.DashboardService.SendScheduledDailyBusinessReportWebhook(reportDate, cfg.LanguageOrDefault())
+		if err != nil {
+			slog.Error("send scheduled daily business report failed", "error", err, "reportDate", reportDate)
+			return
+		}
+		if resp.Sent {
+			slog.Info("scheduled daily business report sent", "reportDate", reportDate)
+		} else {
+			slog.Warn("scheduled daily business report skipped", "reportDate", reportDate, "message", resp.Message)
+		}
+	})
 }

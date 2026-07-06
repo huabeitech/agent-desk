@@ -47,6 +47,15 @@ func registerDashboardDashboardRoutes(group *gin.RouterGroup) {
 	group.GET("/overview", dashboard.DashboardGetOverview)
 }
 
+func registerDashboardBusinessReportRoutes(group *gin.RouterGroup) {
+	group.GET("/ab-tests", dashboard.DashboardGetABTestReport)
+	group.GET("/ai-quality", dashboard.DashboardGetAIQualityReport)
+	group.GET("/daily", dashboard.DashboardGetDailyBusinessReport)
+	group.GET("/sales-funnel", dashboard.DashboardGetSalesFunnelReport)
+	group.GET("/trends", dashboard.DashboardGetBusinessTrendReport)
+	group.POST("/daily/send", dashboard.DashboardPostDailyBusinessReportSend)
+}
+
 func registerDashboardUserRoutes(group *gin.RouterGroup) {
 	group.GET("/:id", dashboard.UserGetBy)
 	group.POST("/assign_role", dashboard.UserPostAssign_role)
@@ -77,6 +86,71 @@ func registerDashboardCustomerRoutes(group *gin.RouterGroup) {
 	group.POST("/save_profile", dashboard.CustomerPostSave_profile)
 	group.POST("/update", dashboard.CustomerPostUpdate)
 	group.POST("/update_status", dashboard.CustomerPostUpdate_status)
+}
+
+func registerDashboardSalesLeadRoutes(group *gin.RouterGroup) {
+	group.GET("/export", dashboard.SalesLeadGetExport)
+	group.GET("/:id", dashboard.SalesLeadGetBy)
+	group.POST("/assign", dashboard.SalesLeadPostAssign)
+	group.POST("/claim-unassigned", dashboard.SalesLeadPostClaimUnassigned)
+	group.POST("/crm/sync", dashboard.SalesLeadPostCrmSync)
+	group.POST("/appointment/reminder/send", dashboard.SalesLeadPostAppointmentReminderSend)
+	group.POST("/appointment/summary", dashboard.SalesLeadPostAppointmentSummary)
+	group.POST("/follow-up/create", dashboard.SalesLeadPostFollowUpCreate)
+	group.POST("/follow-up/reminder/send", dashboard.SalesLeadPostFollowUpReminderSend)
+	group.POST("/follow-up/reminder/summary", dashboard.SalesLeadPostFollowUpReminderSummary)
+	group.POST("/list", dashboard.SalesLeadPostList)
+	group.POST("/update", dashboard.SalesLeadPostUpdate)
+	group.POST("/update-status", dashboard.SalesLeadPostUpdateStatus)
+}
+
+func registerDashboardProductRoutes(group *gin.RouterGroup) {
+	group.GET("/:id", dashboard.ProductGetBy)
+	group.POST("/create", dashboard.ProductPostCreate)
+	group.POST("/delete", dashboard.ProductPostDelete)
+	group.POST("/import", dashboard.ProductPostImport)
+	group.POST("/list", dashboard.ProductPostList)
+	group.POST("/reindex", dashboard.ProductPostReindex)
+	group.POST("/seed_muse", dashboard.ProductPostSeed_muse)
+	group.POST("/update", dashboard.ProductPostUpdate)
+	group.POST("/update_status", dashboard.ProductPostUpdate_status)
+}
+
+func registerDashboardPromotionRoutes(group *gin.RouterGroup) {
+	group.GET("/:id", dashboard.PromotionGetBy)
+	group.POST("/create", dashboard.PromotionPostCreate)
+	group.POST("/delete", dashboard.PromotionPostDelete)
+	group.POST("/import", dashboard.PromotionPostImport)
+	group.POST("/list", dashboard.PromotionPostList)
+	group.POST("/reindex", dashboard.PromotionPostReindex)
+	group.POST("/seed_muse", dashboard.PromotionPostSeed_muse)
+	group.POST("/update", dashboard.PromotionPostUpdate)
+	group.POST("/update_status", dashboard.PromotionPostUpdate_status)
+}
+
+func registerDashboardDigitalStoreRoutes(group *gin.RouterGroup) {
+	group.GET("/delivery_report", dashboard.DigitalStoreGetDelivery_report)
+	group.GET("/delivery_records/latest", dashboard.DigitalStoreGetDelivery_record_latest)
+	group.GET("/knowledge_assistant", dashboard.DigitalStoreGetKnowledge_assistant)
+	group.GET("/maintenance_status", dashboard.DigitalStoreGetMaintenance_status)
+	group.GET("/setup_status", dashboard.DigitalStoreGetSetup_status)
+	group.GET("/template_effect", dashboard.DigitalStoreGetTemplate_effect)
+	group.GET("/templates/export", dashboard.DigitalStoreGetTemplate_export)
+	group.GET("/templates/preview", dashboard.DigitalStoreGetTemplate_preview)
+	group.GET("/templates", dashboard.DigitalStoreGetTemplates)
+	group.GET("/profile", dashboard.DigitalStoreGetProfile)
+	group.POST("/apply_imported_template", dashboard.DigitalStorePostApply_imported_template)
+	group.POST("/apply_template", dashboard.DigitalStorePostApply_template)
+	group.POST("/cleanup_demo_data", dashboard.DigitalStorePostCleanup_demo_data)
+	group.POST("/delivery_records/acceptance_result", dashboard.DigitalStorePostDelivery_record_acceptance_result)
+	group.POST("/delivery_records/create", dashboard.DigitalStorePostDelivery_record_create)
+	group.POST("/ensure_runtime", dashboard.DigitalStorePostEnsure_runtime)
+	group.POST("/profile", dashboard.DigitalStorePostProfile)
+	group.POST("/seed_muse", dashboard.DigitalStorePostSeed_muse)
+	group.POST("/sync_knowledge", dashboard.DigitalStorePostSync_knowledge)
+	group.POST("/templates/import_preview", dashboard.DigitalStorePostTemplate_import_preview)
+	group.POST("/test_webhook_notify", dashboard.DigitalStorePostTest_webhook_notify)
+	group.POST("/test_webhook_notify_scenarios", dashboard.DigitalStorePostTest_webhook_notify_scenarios)
 }
 
 func registerDashboardCustomerContactRoutes(group *gin.RouterGroup) {
@@ -127,12 +201,14 @@ func registerDashboardConversationRoutes(group *gin.RouterGroup) {
 	group.POST("/close", dashboard.ConversationPostClose)
 	group.Any("/conversations", dashboard.ConversationAnyConversations)
 	group.POST("/dispatch", dashboard.ConversationPostDispatch)
+	group.POST("/follow_up_advice", dashboard.ConversationPostFollow_up_advice)
 	group.POST("/link_customer", dashboard.ConversationPostLink_customer)
 	group.Any("/list", dashboard.ConversationAnyList)
 	group.Any("/message_list", dashboard.ConversationAnyMessage_list)
 	group.POST("/read", dashboard.ConversationPostRead)
 	group.POST("/recall_message", dashboard.ConversationPostRecall_message)
 	group.POST("/remove_tag", dashboard.ConversationPostRemove_tag)
+	group.POST("/resume_ai", dashboard.ConversationPostResume_ai)
 	group.POST("/send_message", dashboard.ConversationPostSend_message)
 	group.POST("/transfer", dashboard.ConversationPostTransfer)
 	group.POST("/upload_attachment", dashboard.ConversationPostUpload_attachment)
@@ -295,6 +371,7 @@ func registerDashboardKnowledgeFAQRoutes(group *gin.RouterGroup) {
 	group.POST("/import", dashboard.KnowledgeFAQPostImport)
 	group.Any("/list", dashboard.KnowledgeFAQAnyList)
 	group.POST("/update", dashboard.KnowledgeFAQPostUpdate)
+	group.POST("/update_status", dashboard.KnowledgeFAQPostUpdate_status)
 }
 
 func registerDashboardKnowledgeRetrieveRoutes(group *gin.RouterGroup) {
@@ -306,6 +383,9 @@ func registerDashboardKnowledgeRetrieveRoutes(group *gin.RouterGroup) {
 func registerDashboardKnowledgeRetrieveLogRoutes(group *gin.RouterGroup) {
 	group.GET("/:id", dashboard.KnowledgeRetrieveLogGetBy)
 	group.Any("/list", dashboard.KnowledgeRetrieveLogAnyList)
+	group.POST("/faq-draft/batch-create", dashboard.KnowledgeRetrieveLogPostFaq_draft_batch_create)
+	group.POST("/feedback/create", dashboard.KnowledgeRetrieveLogPostFeedback_create)
+	group.POST("/faq-draft/create", dashboard.KnowledgeRetrieveLogPostFaq_draft_create)
 }
 
 func registerDashboardSkillDefinitionRoutes(group *gin.RouterGroup) {

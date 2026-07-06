@@ -122,7 +122,7 @@ func createOrGetUser(ctx *sqls.TxContext, username, nickname string) (int64, boo
 	}
 
 	// 创建新用户
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(constants.BootstrapAdminPassword), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(constants.BootstrapAdminInitialPassword()), bcrypt.DefaultCost)
 	if err != nil {
 		return 0, false, err
 	}

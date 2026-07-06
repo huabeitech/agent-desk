@@ -101,6 +101,7 @@ func KnowledgeFAQAnyList(ctx *gin.Context) {
 	cnd := params.NewPagedSqlCnd(ctx,
 		params.QueryFilter{ParamName: "knowledgeBaseId"},
 		params.QueryFilter{ParamName: "question", Op: params.Like},
+		params.QueryFilter{ParamName: "status"},
 		params.QueryFilter{ParamName: "indexStatus"},
 	).Desc("id")
 	knowledgeBaseID, _ := params.GetInt64(ctx, "knowledgeBaseId")
@@ -169,6 +170,24 @@ func KnowledgeFAQPostUpdate(ctx *gin.Context) {
 		return
 	}
 	if err := services.KnowledgeFAQService.UpdateKnowledgeFAQ(req, operator); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, nil)
+}
+
+func KnowledgeFAQPostUpdate_status(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionKnowledgeFAQUpdate)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	req := request.UpdateKnowledgeFAQStatusRequest{}
+	if err := params.ReadJSON(ctx, &req); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	if err := services.KnowledgeFAQService.UpdateStatus(req.ID, req.Status, operator); err != nil {
 		httpx.WriteJSON(ctx, err)
 		return
 	}

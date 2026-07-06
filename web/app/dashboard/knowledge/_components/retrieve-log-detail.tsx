@@ -1,15 +1,20 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import {
+  createKnowledgeFeedback,
+  createKnowledgeFAQDraftFromRetrieveLog,
   fetchKnowledgeRetrieveLog,
   type KnowledgeRetrieveHit,
   type KnowledgeRetrieveLogDetail,
 } from "@/lib/api/admin"
+import { KnowledgeFeedbackType } from "@/lib/generated/enums"
 import { formatDateTime } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Drawer,
   DrawerContent,
@@ -19,6 +24,7 @@ import {
 } from "@/components/ui/drawer"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 import { useI18n } from "@/i18n/provider"
 import {
   getKnowledgeAnswerStatusLabel,
@@ -45,6 +51,14 @@ function safeParseJSON(value: string) {
 }
 
 type TFunction = (key: string, values?: Record<string, string | number>) => string
+
+const FEEDBACK_TYPES = [
+  KnowledgeFeedbackType.Like,
+  KnowledgeFeedbackType.Dislike,
+  KnowledgeFeedbackType.NotHelpful,
+  KnowledgeFeedbackType.WrongCitation,
+  KnowledgeFeedbackType.Other,
+]
 
 function CitationList({ hits, t }: { hits: KnowledgeRetrieveHit[]; t: TFunction }) {
   const citations = hits.filter((item) => item.isCitation)
@@ -77,8 +91,13 @@ export function RetrieveLogDetailDrawer({
   onOpenChange,
 }: RetrieveLogDetailDrawerProps) {
   const t = useI18n()
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [detail, setDetail] = useState<KnowledgeRetrieveLogDetail | null>(null)
+  const [feedbackType, setFeedbackType] = useState<KnowledgeFeedbackType>(KnowledgeFeedbackType.Like)
+  const [feedbackReason, setFeedbackReason] = useState("")
+  const [feedbackSaving, setFeedbackSaving] = useState(false)
+  const [faqDraftSaving, setFaqDraftSaving] = useState(false)
 
   const loadDetail = useCallback(async () => {
     if (!retrieveLogId) {
@@ -99,10 +118,58 @@ export function RetrieveLogDetailDrawer({
   useEffect(() => {
     if (open && retrieveLogId) {
       void loadDetail()
+    } else if (!open) {
+      setFeedbackType(KnowledgeFeedbackType.Like)
+      setFeedbackReason("")
     }
   }, [open, retrieveLogId, loadDetail])
 
   const traceData = useMemo(() => safeParseJSON(detail?.log.traceData ?? ""), [detail?.log.traceData])
+
+  const handleSubmitFeedback = useCallback(async () => {
+    if (!detail) {
+      return
+    }
+    setFeedbackSaving(true)
+    try {
+      await createKnowledgeFeedback({
+        retrieveLogId: detail.log.id,
+        feedbackType,
+        feedbackReason: feedbackReason.trim(),
+      })
+      toast.success(t("knowledge.feedbackSaved"))
+      setFeedbackReason("")
+      await loadDetail()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("knowledge.feedbackSaveFailed"))
+    } finally {
+      setFeedbackSaving(false)
+    }
+  }, [detail, feedbackReason, feedbackType, loadDetail, t])
+
+  const handleCreateFAQDraft = useCallback(async () => {
+    if (!detail) {
+      return
+    }
+    setFaqDraftSaving(true)
+    try {
+      const faq = await createKnowledgeFAQDraftFromRetrieveLog({
+        retrieveLogId: detail.log.id,
+        remark: t("knowledge.faqDraftRemark"),
+      })
+      const faqHref = `/dashboard/knowledge?tab=documents&knowledgeBaseId=${faq.knowledgeBaseId}&faqId=${faq.id}`
+      toast.success(t("knowledge.faqDraftCreated"), {
+        action: {
+          label: t("knowledge.edit"),
+          onClick: () => router.push(faqHref),
+        },
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("knowledge.faqDraftCreateFailed"))
+    } finally {
+      setFaqDraftSaving(false)
+    }
+  }, [detail, router, t])
 
   if (!open) {
     return null
@@ -199,6 +266,71 @@ export function RetrieveLogDetailDrawer({
               </section>
 
               <section className="space-y-3">
+                <h3 className="text-sm font-semibold">{t("knowledge.feedbackTitle")}</h3>
+                <div className="space-y-3 rounded-lg border p-4">
+                  <div className="flex flex-wrap gap-2">
+                    {FEEDBACK_TYPES.map((item) => (
+                      <Button
+                        key={item}
+                        type="button"
+                        variant={feedbackType === item ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFeedbackType(item)}
+                      >
+                        {getFeedbackTypeLabel(item, t)}
+                      </Button>
+                    ))}
+                  </div>
+                  <Textarea
+                    rows={3}
+                    value={feedbackReason}
+                    maxLength={500}
+                    placeholder={t("knowledge.feedbackReasonPlaceholder")}
+                    onChange={(event) => setFeedbackReason(event.target.value)}
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs text-muted-foreground">
+                      {t("knowledge.feedbackHistoryCount", { count: detail.feedbacks?.length ?? 0 })}
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleCreateFAQDraft()}
+                        disabled={faqDraftSaving}
+                      >
+                        {faqDraftSaving ? t("knowledge.faqDraftCreating") : t("knowledge.faqDraftCreate")}
+                      </Button>
+                      <Button type="button" size="sm" onClick={() => void handleSubmitFeedback()} disabled={feedbackSaving}>
+                        {feedbackSaving ? t("knowledge.feedbackSubmitting") : t("knowledge.feedbackSubmit")}
+                      </Button>
+                    </div>
+                  </div>
+                  <Separator />
+                  {(detail.feedbacks?.length ?? 0) === 0 ? (
+                    <div className="text-sm text-muted-foreground">{t("knowledge.noFeedback")}</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {detail.feedbacks.map((item) => (
+                        <div key={item.id} className="rounded-md bg-muted/30 p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={item.feedbackType === KnowledgeFeedbackType.Like ? "default" : "secondary"}>
+                              {getFeedbackTypeLabel(item.feedbackType, t, item.feedbackTypeName)}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">{formatDateTime(item.createdAt)}</span>
+                          </div>
+                          <div className="mt-2 text-sm leading-6 whitespace-pre-wrap">
+                            {item.feedbackReason || item.remark || t("knowledge.noFeedbackReason")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="space-y-3">
                 <h3 className="text-sm font-semibold">{t("knowledge.citationSources")}</h3>
                 <CitationList hits={detail.hits} t={t} />
               </section>
@@ -262,6 +394,23 @@ function getHitSourceLabel(item: KnowledgeRetrieveHit, t: TFunction) {
     return `FAQ #${item.faqId}`
   }
   return `${t("knowledge.document")} #${item.documentId}`
+}
+
+function getFeedbackTypeLabel(feedbackType: number, t: TFunction, fallback = "") {
+  switch (feedbackType) {
+    case KnowledgeFeedbackType.Like:
+      return t("knowledge.feedbackLike")
+    case KnowledgeFeedbackType.Dislike:
+      return t("knowledge.feedbackDislike")
+    case KnowledgeFeedbackType.NotHelpful:
+      return t("knowledge.feedbackNotHelpful")
+    case KnowledgeFeedbackType.WrongCitation:
+      return t("knowledge.feedbackWrongCitation")
+    case KnowledgeFeedbackType.Other:
+      return t("knowledge.feedbackOther")
+    default:
+      return fallback || String(feedbackType)
+  }
 }
 
 function Metric({

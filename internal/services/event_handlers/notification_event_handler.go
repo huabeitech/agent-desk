@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"agent-desk/internal/events"
+	"agent-desk/internal/models"
 	"agent-desk/internal/pkg/dto/request"
 	"agent-desk/internal/pkg/eventbus"
 	"agent-desk/internal/pkg/i18nx"
@@ -73,6 +74,9 @@ func handleConversationAssignedInAppNotification(ctx context.Context, event even
 		}
 		content = content + "\n" + i18nx.Getf(i18nx.DefaultLocale, reasonKey, reason)
 	}
+	if contextText := conversationHandoffContext(conversation, event.ContextText); contextText != "" {
+		content = content + "\n" + contextText
+	}
 	_, err := services.NotificationService.CreateAndPush(request.CreateNotificationRequest{
 		RecipientUserID:  event.ToUserID,
 		Title:            conversationAssignedNotifyTitle(event.AssignType),
@@ -86,4 +90,11 @@ func handleConversationAssignedInAppNotification(ctx context.Context, event even
 		slog.Error("create conversation assigned in-app notification failed", "error", err, "conversationId", event.ConversationID, "toUserId", event.ToUserID)
 	}
 	return nil
+}
+
+func conversationHandoffContext(conversation *models.Conversation, eventContext string) string {
+	if contextText := strings.TrimSpace(eventContext); contextText != "" {
+		return contextText
+	}
+	return strings.TrimSpace(services.ConversationService.BuildHandoffContext(conversation, ""))
 }

@@ -466,7 +466,12 @@ func understandConversationMessage(rawMessage string) workflowConversationUnders
 		ret.Confidence = 0.9
 		ret.RiskSignals = append(ret.RiskSignals, "ticket_expected")
 		ret.Reason = "matched ticket phrase"
-	case containsAnyWorkflowText(lower, "确认", "可以", "好的", "好", "是的", "取消"):
+	case isKnowledgeSeekingWorkflowQuestion(lower):
+		ret.MessageIntent = "business_question"
+		ret.AnswerScope = "needs_knowledge"
+		ret.Confidence = 0.86
+		ret.Reason = "matched knowledge seeking question"
+	case isConfirmationWorkflowMessage(lower):
 		ret.MessageIntent = "confirmation"
 		ret.AnswerScope = "direct_reply"
 		ret.Confidence = 0.8
@@ -537,6 +542,26 @@ func isGreetingMessage(value string) bool {
 func isAmbiguousWorkflowQuestion(value string) bool {
 	trimmed := strings.Trim(value, " 	\r\n。.!！?？~～")
 	return containsAnyWorkflowText(trimmed, "怎么弄", "怎么办", "怎么处理", "帮我看看", "有问题") || len([]rune(trimmed)) <= 3
+}
+
+func isKnowledgeSeekingWorkflowQuestion(value string) bool {
+	trimmed := strings.Trim(value, " 	\r\n。.!！?？~～")
+	if trimmed == "" {
+		return false
+	}
+	return containsAnyWorkflowText(trimmed,
+		"?", "？", "吗", "呢", "么", "是不是", "是否", "能不能", "能否", "可不可以", "为什么", "怎么", "如何", "哪", "哪个", "哪种", "什么",
+		"推荐", "适合", "价格", "多少钱", "多少", "预算", "型号", "产品", "功能", "区别", "对比", "活动", "优惠",
+	)
+}
+
+func isConfirmationWorkflowMessage(value string) bool {
+	trimmed := strings.Trim(value, " 	\r\n。.!！?？~～")
+	switch trimmed {
+	case "确认", "可以", "可以的", "好的", "好", "是的", "嗯", "嗯嗯", "行", "取消":
+		return true
+	}
+	return (strings.HasPrefix(trimmed, "确认") || strings.HasPrefix(trimmed, "取消")) && len([]rune(trimmed)) <= 8
 }
 
 func containsAnyWorkflowText(value string, needles ...string) bool {
@@ -742,6 +767,9 @@ func (e *Executor) executeAnswerabilityGate(state *runState, node dsl.Node) erro
 	if hasItems(items) {
 		answerability = "answerable"
 		reason = "retrieved knowledge items are available"
+	} else if strings.TrimSpace(services.DigitalStoreProfileService.BuildRuntimeInstruction()) != "" {
+		answerability = "answerable"
+		reason = "digital store runtime context is available"
 	}
 	state.setNodeVars(node.ID, map[string]any{
 		"answerability": answerability,
@@ -761,10 +789,14 @@ func (e *Executor) executeLLMReply(ctx context.Context, state *runState, node ds
 	}
 	knowledgeItems := toString(state.resolveInput(node, "knowledgeItems"))
 	systemPrompt := strings.TrimSpace(state.input.AIAgent.SystemPrompt)
+	runtimeInstruction := services.DigitalStoreProfileService.BuildRuntimeInstruction()
+	if runtimeInstruction != "" {
+		systemPrompt = strings.TrimSpace(systemPrompt + "\n\n" + runtimeInstruction)
+	}
 	if prompt := strings.TrimSpace(readStringConfig(node.Config, "prompt")); prompt != "" {
 		systemPrompt = strings.TrimSpace(systemPrompt + "\n\n" + prompt)
 	}
-	if _, declaresKnowledge := node.Inputs["knowledgeItems"]; declaresKnowledge && len(utils.SplitInt64s(state.input.AIAgent.KnowledgeIDs)) > 0 && !hasItems(state.resolveInput(node, "knowledgeItems")) {
+	if _, declaresKnowledge := node.Inputs["knowledgeItems"]; declaresKnowledge && len(utils.SplitInt64s(state.input.AIAgent.KnowledgeIDs)) > 0 && !hasItems(state.resolveInput(node, "knowledgeItems")) && runtimeInstruction == "" {
 		state.setNodeVars(node.ID, map[string]any{"replyText": workflowKnowledgeFallbackReply(state.input.AIAgent)})
 		return nil
 	}

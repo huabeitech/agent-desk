@@ -543,6 +543,7 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 
 	// 客户发送消息，触发AI回复
 	if senderType == enums.IMSenderTypeCustomer {
+		SalesLeadService.ExtractFromCustomerMessageAsync(*conversation, *message)
 		if TriggerAIReplyAsyncHook != nil {
 			TriggerAIReplyAsyncHook(*conversation, *message)
 		}

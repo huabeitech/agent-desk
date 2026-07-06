@@ -225,6 +225,44 @@ func ConversationPostClose(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, nil)
 }
 
+func ConversationPostResume_ai(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionConversationTransfer)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+
+	req := request.ResumeAIConversationRequest{}
+	if err := params.ReadJSON(ctx, &req); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	if err := services.ConversationService.ResumeAIConversation(req.ConversationID, req.Reason, operator); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, nil)
+}
+
+func ConversationPostFollow_up_advice(ctx *gin.Context) {
+	if _, err := services.AuthService.RequirePermission(ctx, constants.PermissionConversationView); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+
+	req := request.ConversationFollowUpAdviceRequest{}
+	if err := params.ReadJSON(ctx, &req); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	ret, err := services.ConversationService.BuildFollowUpAdvice(req.ConversationID)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, ret)
+}
+
 func ConversationPostLink_customer(ctx *gin.Context) {
 	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionConversationLinkCustomer)
 	if err != nil {

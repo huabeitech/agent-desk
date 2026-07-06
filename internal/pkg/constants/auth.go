@@ -1,5 +1,10 @@
 package constants
 
+import (
+	"os"
+	"strings"
+)
+
 const (
 	RoleCodeSuperAdmin   = "super_admin"    // 超管
 	RoleCodeAdmin        = "admin"          // 管理员
@@ -20,6 +25,17 @@ const (
 	BootstrapAdminPassword = "ChangeMe123!"
 	BootstrapAdminNickname = "Super Admin"
 )
+
+const (
+	EnvBootstrapAdminPassword = "AGENT_DESK_BOOTSTRAP_ADMIN_PASSWORD"
+)
+
+func BootstrapAdminInitialPassword() string {
+	if password := strings.TrimSpace(os.Getenv(EnvBootstrapAdminPassword)); password != "" {
+		return password
+	}
+	return BootstrapAdminPassword
+}
 
 // Permission 权限结构体
 type Permission struct {
@@ -108,6 +124,30 @@ var (
 	PermissionCustomerCreate = Permission{Name: "创建客户", Code: "customer.create", Type: "api", GroupName: "customer", Method: "POST", APIPath: "/api/dashboard/customer/create", SortNo: 640}
 	PermissionCustomerUpdate = Permission{Name: "更新客户", Code: "customer.update", Type: "api", GroupName: "customer", Method: "POST", APIPath: "/api/dashboard/customer/update", SortNo: 650}
 	PermissionCustomerDelete = Permission{Name: "删除客户", Code: "customer.delete", Type: "api", GroupName: "customer", Method: "POST", APIPath: "/api/dashboard/customer/delete", SortNo: 660}
+
+	// 销售线索相关权限
+	PermissionSalesLeadView     = Permission{Name: "查看销售线索", Code: "salesLead.view", Type: "api", GroupName: "salesLead", Method: "POST", APIPath: "/api/dashboard/sales-lead/list", SortNo: 665}
+	PermissionSalesLeadUpdate   = Permission{Name: "更新销售线索", Code: "salesLead.update", Type: "api", GroupName: "salesLead", Method: "POST", APIPath: "/api/dashboard/sales-lead/update", SortNo: 666}
+	PermissionSalesLeadAssign   = Permission{Name: "分配销售线索", Code: "salesLead.assign", Type: "api", GroupName: "salesLead", Method: "POST", APIPath: "/api/dashboard/sales-lead/assign", SortNo: 667}
+	PermissionSalesLeadFollowUp = Permission{Name: "跟进销售线索", Code: "salesLead.followUp", Type: "api", GroupName: "salesLead", Method: "POST", APIPath: "/api/dashboard/sales-lead/follow-up/create", SortNo: 668}
+
+	// 产品库相关权限
+	PermissionProductView    = Permission{Name: "查看产品库", Code: "product.view", Type: "api", GroupName: "product", Method: "POST", APIPath: "/api/dashboard/product/list", SortNo: 669}
+	PermissionProductCreate  = Permission{Name: "创建产品", Code: "product.create", Type: "api", GroupName: "product", Method: "POST", APIPath: "/api/dashboard/product/create", SortNo: 670}
+	PermissionProductUpdate  = Permission{Name: "更新产品", Code: "product.update", Type: "api", GroupName: "product", Method: "POST", APIPath: "/api/dashboard/product/update", SortNo: 671}
+	PermissionProductDelete  = Permission{Name: "删除产品", Code: "product.delete", Type: "api", GroupName: "product", Method: "POST", APIPath: "/api/dashboard/product/delete", SortNo: 672}
+	PermissionProductReindex = Permission{Name: "重建产品索引", Code: "product.reindex", Type: "api", GroupName: "product", Method: "POST", APIPath: "/api/dashboard/product/reindex", SortNo: 673}
+
+	// 活动/优惠库相关权限
+	PermissionPromotionView    = Permission{Name: "查看活动库", Code: "promotion.view", Type: "api", GroupName: "promotion", Method: "POST", APIPath: "/api/dashboard/promotion/list", SortNo: 674}
+	PermissionPromotionCreate  = Permission{Name: "创建活动", Code: "promotion.create", Type: "api", GroupName: "promotion", Method: "POST", APIPath: "/api/dashboard/promotion/create", SortNo: 675}
+	PermissionPromotionUpdate  = Permission{Name: "更新活动", Code: "promotion.update", Type: "api", GroupName: "promotion", Method: "POST", APIPath: "/api/dashboard/promotion/update", SortNo: 676}
+	PermissionPromotionDelete  = Permission{Name: "删除活动", Code: "promotion.delete", Type: "api", GroupName: "promotion", Method: "POST", APIPath: "/api/dashboard/promotion/delete", SortNo: 677}
+	PermissionPromotionReindex = Permission{Name: "重建活动索引", Code: "promotion.reindex", Type: "api", GroupName: "promotion", Method: "POST", APIPath: "/api/dashboard/promotion/reindex", SortNo: 678}
+
+	// AI 数字店长配置权限
+	PermissionDigitalStoreView   = Permission{Name: "查看数字店长配置", Code: "digitalStore.view", Type: "api", GroupName: "digitalStore", Method: "GET", APIPath: "/api/dashboard/digital-store/profile", SortNo: 679}
+	PermissionDigitalStoreUpdate = Permission{Name: "更新数字店长配置", Code: "digitalStore.update", Type: "api", GroupName: "digitalStore", Method: "POST", APIPath: "/api/dashboard/digital-store/profile", SortNo: 680}
 
 	// 客服相关权限
 	PermissionAgentView         = Permission{Name: "查看客服", Code: "agent.view", Type: "api", GroupName: "agent", Method: "ANY", APIPath: "/api/dashboard/agent/list", SortNo: 610}
@@ -227,6 +267,22 @@ var Permissions = []Permission{
 	PermissionCustomerCreate,
 	PermissionCustomerUpdate,
 	PermissionCustomerDelete,
+	PermissionSalesLeadView,
+	PermissionSalesLeadUpdate,
+	PermissionSalesLeadAssign,
+	PermissionSalesLeadFollowUp,
+	PermissionProductView,
+	PermissionProductCreate,
+	PermissionProductUpdate,
+	PermissionProductDelete,
+	PermissionProductReindex,
+	PermissionPromotionView,
+	PermissionPromotionCreate,
+	PermissionPromotionUpdate,
+	PermissionPromotionDelete,
+	PermissionPromotionReindex,
+	PermissionDigitalStoreView,
+	PermissionDigitalStoreUpdate,
 	PermissionAgentView,
 	PermissionAgentCreate,
 	PermissionAgentUpdate,
@@ -356,6 +412,10 @@ var builtinPermissionResourceLabels = map[string]string{
 	"company":           "companies",
 	"channel":           "channels",
 	"customer":          "customers",
+	"salesLead":         "sales leads",
+	"product":           "products",
+	"promotion":         "promotions",
+	"digitalStore":      "digital store profiles",
 	"agent":             "agents",
 	"agentTeam":         "agent teams",
 	"agentTeamSchedule": "agent team schedules",
@@ -381,6 +441,8 @@ var builtinPermissionNameOverrides = map[string]string{
 	"agentTeamSchedule.batchGenerate": "Batch generate agent team schedules",
 	"mcp.view":                        "View MCP debug information",
 	"mcp.call":                        "Call MCP tools",
+	"product.reindex":                 "Reindex products",
+	"promotion.reindex":               "Reindex promotions",
 }
 
 type RoleSpec struct {
@@ -411,6 +473,10 @@ var RolePermissions = map[string][]Permission{
 		PermissionCompanyView, PermissionCompanyCreate, PermissionCompanyUpdate, PermissionCompanyDelete,
 		PermissionChannelView, PermissionChannelCreate, PermissionChannelUpdate, PermissionChannelDelete,
 		PermissionCustomerView, PermissionCustomerCreate, PermissionCustomerUpdate, PermissionCustomerDelete,
+		PermissionSalesLeadView, PermissionSalesLeadUpdate, PermissionSalesLeadAssign, PermissionSalesLeadFollowUp,
+		PermissionProductView, PermissionProductCreate, PermissionProductUpdate, PermissionProductDelete, PermissionProductReindex,
+		PermissionPromotionView, PermissionPromotionCreate, PermissionPromotionUpdate, PermissionPromotionDelete, PermissionPromotionReindex,
+		PermissionDigitalStoreView, PermissionDigitalStoreUpdate,
 		PermissionAgentView, PermissionAgentCreate, PermissionAgentUpdate, PermissionAgentDelete, PermissionAgentUpdateStatus, PermissionAgentConfig,
 		PermissionAgentTeamView, PermissionAgentTeamCreate, PermissionAgentTeamUpdate, PermissionAgentTeamDelete,
 		PermissionAgentTeamScheduleView, PermissionAgentTeamScheduleCreate, PermissionAgentTeamScheduleUpdate, PermissionAgentTeamScheduleDelete, PermissionAgentTeamScheduleBatchGenerate,
@@ -432,6 +498,10 @@ var RolePermissions = map[string][]Permission{
 		PermissionCompanyView,
 		PermissionChannelView, PermissionChannelCreate, PermissionChannelUpdate,
 		PermissionCustomerView, PermissionCustomerCreate, PermissionCustomerUpdate,
+		PermissionSalesLeadView, PermissionSalesLeadUpdate, PermissionSalesLeadAssign, PermissionSalesLeadFollowUp,
+		PermissionProductView, PermissionProductCreate, PermissionProductUpdate, PermissionProductReindex,
+		PermissionPromotionView, PermissionPromotionCreate, PermissionPromotionUpdate, PermissionPromotionReindex,
+		PermissionDigitalStoreView, PermissionDigitalStoreUpdate,
 		PermissionAgentView, PermissionAgentUpdate,
 		PermissionAgentTeamView,
 		PermissionAgentTeamScheduleView, PermissionAgentTeamScheduleCreate, PermissionAgentTeamScheduleUpdate, PermissionAgentTeamScheduleDelete, PermissionAgentTeamScheduleBatchGenerate,
@@ -452,6 +522,10 @@ var RolePermissions = map[string][]Permission{
 		PermissionCompanyView,
 		PermissionChannelView,
 		PermissionCustomerView,
+		PermissionSalesLeadView, PermissionSalesLeadUpdate, PermissionSalesLeadFollowUp,
+		PermissionProductView,
+		PermissionPromotionView,
+		PermissionDigitalStoreView,
 		PermissionAssetView,
 		PermissionAgentView,
 		PermissionAgentTeamView,

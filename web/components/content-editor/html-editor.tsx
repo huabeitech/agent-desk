@@ -190,6 +190,9 @@ export const HtmlEditor = forwardRef<HtmlEditorRef, HtmlEditorProps>(
           />
         ),
       },
+      ...(allowedModes.length > 1
+        ? ([{ key: "separator-mode", type: "separator" }] satisfies EditorToolbarAction[])
+        : []),
       {
         key: "bold",
         label: t("editor.bold"),
@@ -330,10 +333,6 @@ export const HtmlEditor = forwardRef<HtmlEditorRef, HtmlEditorProps>(
         onClick: handleTogglePreviewOnly,
       },
     ]
-
-    if (allowedModes.length > 1) {
-      actions.splice(1, 0, { key: "separator-mode", type: "separator" })
-    }
 
     if (!editor) {
       return null

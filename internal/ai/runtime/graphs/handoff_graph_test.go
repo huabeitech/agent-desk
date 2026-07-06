@@ -114,8 +114,13 @@ func setupHandoffGraphTestDB(t *testing.T) *gorm.DB {
 		&models.Conversation{},
 		&models.ConversationEventLog{},
 		&models.ConversationReadState{},
+		&models.Customer{},
+		&models.CustomerIdentity{},
+		&models.Channel{},
 		&models.Message{},
 		&models.ChannelMessageOutbox{},
+		&models.SalesLead{},
+		&models.LeadFollowUp{},
 	); err != nil {
 		t.Fatalf("auto migrate error = %v", err)
 	}

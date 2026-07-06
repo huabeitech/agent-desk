@@ -5,6 +5,7 @@ import {
   FolderInputIcon,
   MoreHorizontalIcon,
   PencilIcon,
+  PowerIcon,
   SearchIcon,
   Trash2Icon,
   WrenchIcon,
@@ -49,12 +50,14 @@ import {
   buildKnowledgeFAQIndex,
   createKnowledgeFAQ,
   deleteKnowledgeFAQ,
+  fetchKnowledgeFAQ,
   fetchKnowledgeFAQs,
   updateKnowledgeFAQ,
+  updateKnowledgeFAQStatus,
   type CreateKnowledgeFAQPayload,
   type KnowledgeFAQ,
 } from "@/lib/api/admin";
-import { KnowledgeDocumentIndexStatus } from "@/lib/generated/enums";
+import { KnowledgeDocumentIndexStatus, Status } from "@/lib/generated/enums";
 import { useI18n } from "@/i18n/provider";
 import { cn, formatDateTime } from "@/lib/utils";
 import { FAQEditDialog } from "./faq-edit";
@@ -66,6 +69,7 @@ import { SelectionCheckbox } from "./selection-checkbox";
 
 type FAQListProps = {
   knowledgeBaseId: number | null;
+  focusedFaqId?: number | null;
   onActionStateChange?: (state: FAQListActionState) => void;
 };
 
@@ -85,6 +89,14 @@ function getIndexStatusOptions(t: TFunction) {
     { value: KnowledgeDocumentIndexStatus.Pending, label: t("knowledge.indexPending") },
     { value: KnowledgeDocumentIndexStatus.Indexed, label: t("knowledge.indexIndexed") },
     { value: KnowledgeDocumentIndexStatus.Failed, label: t("knowledge.indexFailed") },
+  ];
+}
+
+function getFAQStatusOptions(t: TFunction) {
+  return [
+    { value: "all", label: t("knowledge.allStatus") },
+    { value: String(Status.Disabled), label: t("knowledge.statusDisabled") },
+    { value: String(Status.Ok), label: t("knowledge.statusOk") },
   ];
 }
 
@@ -134,8 +146,21 @@ function renderIndexStatusBadge(item: KnowledgeFAQ, t: TFunction) {
   );
 }
 
+function getFAQStatusLabel(status: number, fallback: string, t: TFunction) {
+  if (status === Status.Ok) return t("knowledge.statusOk");
+  if (status === Status.Disabled) return t("knowledge.statusDisabled");
+  return fallback || String(status);
+}
+
+function getFAQStatusBadgeVariant(status: number) {
+  if (status === Status.Ok) return "default" as const;
+  if (status === Status.Disabled) return "secondary" as const;
+  return "outline" as const;
+}
+
 export function FAQList({
   knowledgeBaseId,
+  focusedFaqId = null,
   onActionStateChange,
 }: FAQListProps) {
   const t = useI18n();
@@ -153,8 +178,10 @@ export function FAQList({
   const [selectedDirectoryId, setSelectedDirectoryId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<KnowledgeFAQ | null>(null);
-  const [actionLoadingMap, setActionLoadingMap] = useState<Record<number, { rebuildIndex: boolean; delete: boolean }>>({});
+  const [actionLoadingMap, setActionLoadingMap] = useState<Record<number, { rebuildIndex: boolean; delete: boolean; status: boolean }>>({});
   const indexStatusOptions = useMemo(() => getIndexStatusOptions(t), [t]);
+  const faqStatusOptions = useMemo(() => getFAQStatusOptions(t), [t]);
+  const [lastFocusedFaqId, setLastFocusedFaqId] = useState<number | null>(null);
 
   useEffect(() => {
     setSelectedDirectoryId(null);
@@ -172,6 +199,12 @@ export function FAQList({
       defaultValue: "all",
       allValue: "all",
     },
+    {
+      name: "status",
+      defaultValue: "all",
+      allValue: "all",
+      valueType: "number",
+    },
   ], []);
 
   const fetchList = useCallback(async (query: Record<string, string | number | undefined>) => {
@@ -180,6 +213,7 @@ export function FAQList({
       directoryId: selectedDirectoryId === null ? undefined : selectedDirectoryId,
       question: typeof query.question === "string" ? query.question : undefined,
       indexStatus: typeof query.indexStatus === "string" ? query.indexStatus : undefined,
+      status: query.status === undefined ? undefined : query.status,
       page: typeof query.page === "number" ? query.page : Number(query.page ?? 1),
       limit: typeof query.limit === "number" ? query.limit : Number(query.limit ?? 20),
     });
@@ -237,6 +271,10 @@ export function FAQList({
     applyFilter("indexStatus", value ?? "all");
   }
 
+  function handleFAQStatusFilterChange(value: string | null) {
+    applyFilter("status", value ?? "all");
+  }
+
   function handleFilterKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter") {
       return;
@@ -267,6 +305,35 @@ export function FAQList({
     setEditingItem(item);
     setDialogOpen(true);
   }
+
+  useEffect(() => {
+    if (!knowledgeBaseId || !focusedFaqId || lastFocusedFaqId === focusedFaqId) {
+      return;
+    }
+
+    let cancelled = false;
+    const targetFaqId = focusedFaqId;
+
+    async function openFocusedFAQ() {
+      try {
+        const item = await fetchKnowledgeFAQ(targetFaqId);
+        if (cancelled || item.knowledgeBaseId !== knowledgeBaseId) {
+          return;
+        }
+        setLastFocusedFaqId(targetFaqId);
+        setEditingItem(item);
+        setDialogOpen(true);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t("knowledge.loadFAQFailed"));
+      }
+    }
+
+    void openFocusedFAQ();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [focusedFaqId, knowledgeBaseId, lastFocusedFaqId, t]);
 
   function openDetailDialog(item: KnowledgeFAQ) {
     setDetailItemId(item.id);
@@ -382,6 +449,19 @@ export function FAQList({
     }
   }
 
+  async function handleUpdateStatus(item: KnowledgeFAQ, status: Status) {
+    setActionLoadingMap((prev) => ({ ...prev, [item.id]: { ...prev[item.id], status: true } }));
+    try {
+      await updateKnowledgeFAQStatus({ id: item.id, status });
+      toast.success(status === Status.Ok ? t("knowledge.faqEnabled") : t("knowledge.faqDisabled"));
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("knowledge.faqStatusUpdateFailed"));
+    } finally {
+      setActionLoadingMap((prev) => ({ ...prev, [item.id]: { ...prev[item.id], status: false } }));
+    }
+  }
+
   if (!knowledgeBaseId) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -418,6 +498,16 @@ export function FAQList({
                   onChange={handleIndexStatusFilterChange}
                   options={indexStatusOptions}
                   placeholder={t("knowledge.allIndexStatus")}
+                  searchPlaceholder={t("knowledge.searchStatus")}
+                  emptyText={t("knowledge.emptyStatus")}
+                />
+              </div>
+              <div className="w-28 shrink-0">
+                <OptionCombobox
+                  value={String(draftFilters.status ?? "all")}
+                  onChange={handleFAQStatusFilterChange}
+                  options={faqStatusOptions}
+                  placeholder={t("knowledge.allStatus")}
                   searchPlaceholder={t("knowledge.searchStatus")}
                   emptyText={t("knowledge.emptyStatus")}
                 />
@@ -468,6 +558,9 @@ export function FAQList({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <div className="truncate text-sm font-medium">{item.question}</div>
+                            <Badge variant={getFAQStatusBadgeVariant(item.status)}>
+                              {getFAQStatusLabel(item.status, item.statusName, t)}
+                            </Badge>
                             {renderIndexStatusBadge(item, t)}
                           </div>
                           <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">
@@ -503,6 +596,17 @@ export function FAQList({
                               {actionLoadingMap[item.id]?.rebuildIndex ? t("knowledge.running") : t("knowledge.rebuildIndex")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              onClick={() => void handleUpdateStatus(item, item.status === Status.Ok ? Status.Disabled : Status.Ok)}
+                              disabled={actionLoadingMap[item.id]?.status}
+                            >
+                              <PowerIcon className="mr-2 size-3.5" />
+                              {actionLoadingMap[item.id]?.status
+                                ? t("knowledge.running")
+                                : item.status === Status.Ok
+                                  ? t("knowledge.disable")
+                                  : t("knowledge.enable")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               onClick={() => void handleDelete(item)}
                               className="text-destructive focus:text-destructive"
                             >
@@ -529,6 +633,17 @@ export function FAQList({
                       <ContextMenuItem onClick={() => void handleBuildIndex(item)} disabled={actionLoadingMap[item.id]?.rebuildIndex}>
                         <WrenchIcon className="mr-2 size-3.5" />
                         {actionLoadingMap[item.id]?.rebuildIndex ? t("knowledge.running") : t("knowledge.rebuildIndex")}
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onClick={() => void handleUpdateStatus(item, item.status === Status.Ok ? Status.Disabled : Status.Ok)}
+                        disabled={actionLoadingMap[item.id]?.status}
+                      >
+                        <PowerIcon className="mr-2 size-3.5" />
+                        {actionLoadingMap[item.id]?.status
+                          ? t("knowledge.running")
+                          : item.status === Status.Ok
+                            ? t("knowledge.disable")
+                            : t("knowledge.enable")}
                       </ContextMenuItem>
                       <ContextMenuItem
                         onClick={() => void handleDelete(item)}
