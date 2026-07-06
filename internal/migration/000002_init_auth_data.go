@@ -186,7 +186,7 @@ func ensureBootstrapAdmin(tx *gorm.DB, superAdminRole *models.Role) error {
 
 	username := constants.BootstrapAdminUsername
 	nickname := constants.BootstrapAdminNickname
-	password := constants.BootstrapAdminPassword
+	password := constants.BootstrapAdminInitialPassword()
 
 	if strings.TrimSpace(password) == "" {
 		password = "ChangeMe123!"

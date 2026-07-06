@@ -73,9 +73,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     currentUserIdRef.current = readSession()?.user.id ?? 0
-    void refreshUnreadCount().catch(() => {
-      setUnreadCount(0)
-    })
+    const refreshTask = window.setTimeout(() => {
+      void refreshUnreadCount().catch(() => {
+        setUnreadCount(0)
+      })
+    }, 0)
+    return () => window.clearTimeout(refreshTask)
   }, [refreshUnreadCount])
 
   useEffect(() => {

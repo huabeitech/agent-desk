@@ -5,8 +5,8 @@ services:
     environment:
       MYSQL_DATABASE: cs_ai_agent
       MYSQL_USER: cs_ai_agent
-      MYSQL_PASSWORD: cs_ai_agent_password
-      MYSQL_ROOT_PASSWORD: cs_ai_agent_root_password
+      MYSQL_PASSWORD: "${AGENT_DESK_MYSQL_PASSWORD:-cs_ai_agent_password}"
+      MYSQL_ROOT_PASSWORD: "${AGENT_DESK_MYSQL_ROOT_PASSWORD:-cs_ai_agent_root_password}"
       TZ: Asia/Shanghai
     command:
       - --character-set-server=utf8mb4
@@ -46,6 +46,13 @@ services:
       - ./docker/agent-desk.yaml:/app/config/config.yaml:ro
     environment:
       TZ: Asia/Shanghai
+      AGENT_DESK_BOOTSTRAP_ADMIN_PASSWORD: "${AGENT_DESK_BOOTSTRAP_ADMIN_PASSWORD:-}"
+      AGENT_DESK_CUSTOMERSESSION_SECRET: "${AGENT_DESK_CUSTOMERSESSION_SECRET:-}"
+      AGENT_DESK_DB_DSN: "${AGENT_DESK_DB_DSN:-cs_ai_agent:${AGENT_DESK_MYSQL_PASSWORD:-cs_ai_agent_password}@tcp(mysql:3306)/cs_ai_agent?charset=utf8mb4&parseTime=True&multiStatements=true&loc=Local}"
+      AGENT_DESK_NOTIFY_WEBHOOK_ENABLED: "${AGENT_DESK_NOTIFY_WEBHOOK_ENABLED:-false}"
+      AGENT_DESK_NOTIFY_WEBHOOK_URL: "${AGENT_DESK_NOTIFY_WEBHOOK_URL:-}"
+      AGENT_DESK_NOTIFY_WEBHOOK_FORMAT: "${AGENT_DESK_NOTIFY_WEBHOOK_FORMAT:-generic}"
+      AGENT_DESK_NOTIFY_WEBHOOK_SECRET: "${AGENT_DESK_NOTIFY_WEBHOOK_SECRET:-}"
 
 volumes:
   mysql-data:

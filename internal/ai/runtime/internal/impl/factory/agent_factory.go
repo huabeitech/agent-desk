@@ -10,6 +10,7 @@ import (
 	"agent-desk/internal/ai/runtime/registry"
 	"agent-desk/internal/ai/runtime/tooling"
 	"agent-desk/internal/models"
+	"agent-desk/internal/services"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/tool"
@@ -71,6 +72,9 @@ func (f *AgentFactory) BuildCustomerServiceAgent(ctx context.Context, input Buil
 	}
 	allTools := make([]tool.BaseTool, 0, len(input.StaticTools))
 	allTools = append(allTools, input.StaticTools...)
+	if runtimeInstruction := services.DigitalStoreProfileService.BuildRuntimeInstruction(); runtimeInstruction != "" {
+		input.AIAgent.SystemPrompt = strings.TrimSpace(input.AIAgent.SystemPrompt + "\n\n" + runtimeInstruction)
+	}
 	instructionResult := f.instructionService.Build(input.AIAgent, nil, input.InstructionToolDefinitions, input.StaticToolCodes)
 	handlers := make([]adk.ChatModelAgentMiddleware, 0, 3)
 	builtHandlers, err := f.handlerService.Build(ctx, BuildAgentHandlersInput{

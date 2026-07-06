@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -196,7 +197,13 @@ func TestNewServerSeparatesAPIStaticAndSPA(t *testing.T) {
 		contentType string
 	}{
 		{path: "/api/not-exists", wantStatus: http.StatusNotFound, contentType: "application/json"},
-		{path: "/dashboard/not-exists", wantStatus: http.StatusOK, contentType: "text/html"},
+	}
+	if _, err := os.Stat("../../web/out/index.html"); err == nil {
+		tests = append(tests, struct {
+			path        string
+			wantStatus  int
+			contentType string
+		}{path: "/dashboard/not-exists", wantStatus: http.StatusOK, contentType: "text/html"})
 	}
 
 	for _, tt := range tests {

@@ -2,6 +2,7 @@
 
 import { BanIcon, CheckCircle2Icon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { type CustomerFormSavePayload } from "@/components/customer-form";
 import {
@@ -34,6 +35,8 @@ function getGenderText(gender: number, t: TFunction) {
 
 export default function DashboardCustomersPage() {
   const t = useI18n();
+  const searchParams = useSearchParams();
+  const initialKeyword = searchParams.get("keyword") ?? "";
   const [companyOptions, setCompanyOptions] = useState<ComboboxOption[]>([
     { value: "0", label: t("customer.allCompanies") },
   ]);
@@ -88,7 +91,7 @@ export default function DashboardCustomersPage() {
         name: "keyword",
         label: t("customer.columnName"),
         placeholder: t("customer.keywordPlaceholder"),
-        defaultValue: "",
+        defaultValue: initialKeyword,
         trim: true,
         className: "w-full sm:w-72",
       },
@@ -123,7 +126,7 @@ export default function DashboardCustomersPage() {
         className: "w-full sm:w-36",
       },
     ],
-    [companyOptions, genderOptions, listStatusOptions, t],
+    [companyOptions, genderOptions, initialKeyword, listStatusOptions, t],
   );
 
   const columns = useMemo<DashboardCrudColumn<AdminCustomer>[]>(

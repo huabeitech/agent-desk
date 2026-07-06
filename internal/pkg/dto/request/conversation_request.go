@@ -39,6 +39,15 @@ type CloseConversationRequest struct {
 	CloseReason    string `json:"closeReason"`
 }
 
+type ResumeAIConversationRequest struct {
+	ConversationID int64  `json:"conversationId"`
+	Reason         string `json:"reason"`
+}
+
+type ConversationFollowUpAdviceRequest struct {
+	ConversationID int64 `json:"conversationId"`
+}
+
 type ReadConversationRequest struct {
 	ConversationID int64 `json:"conversationId"`
 	MessageID      int64 `json:"messageId"`

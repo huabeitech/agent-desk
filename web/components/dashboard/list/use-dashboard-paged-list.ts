@@ -118,6 +118,7 @@ export function useDashboardPagedList<TItem>({
 
   return {
     draftFilters,
+    appliedFilters,
     setDraftFilter,
     applyFilter: applyDraftFilter,
     applyFilters: applyDraftFilters,

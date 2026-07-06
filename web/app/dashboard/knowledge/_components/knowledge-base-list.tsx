@@ -65,6 +65,7 @@ import { EditDialog } from "./knowledge-base-edit";
 
 type KnowledgeBaseListProps = {
   selectedKnowledgeBaseId: number | null;
+  preferredKnowledgeBaseId?: number | null;
   onSelectKnowledgeBase: (knowledgeBase: KnowledgeBase | null) => void;
 };
 
@@ -235,6 +236,7 @@ function SortableKnowledgeBaseCard({
 
 export function KnowledgeBaseList({
   selectedKnowledgeBaseId,
+  preferredKnowledgeBaseId,
   onSelectKnowledgeBase,
 }: KnowledgeBaseListProps) {
   const t = useI18n();
@@ -293,9 +295,12 @@ export function KnowledgeBaseList({
       knowledgeBases.length > 0 &&
       !loading
     ) {
-      onSelectKnowledgeBase(knowledgeBases[0]);
+      const preferred = preferredKnowledgeBaseId
+        ? knowledgeBases.find((item) => item.id === preferredKnowledgeBaseId)
+        : null;
+      onSelectKnowledgeBase(preferred ?? knowledgeBases[0]);
     }
-  }, [selectedKnowledgeBaseId, knowledgeBases, loading, onSelectKnowledgeBase]);
+  }, [selectedKnowledgeBaseId, preferredKnowledgeBaseId, knowledgeBases, loading, onSelectKnowledgeBase]);
 
   function handleStatusFilterChange(value: string | null) {
     setStatusFilterInput(value ?? "all");

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"agent-desk/internal/events"
@@ -10,6 +11,7 @@ import (
 	"agent-desk/internal/pkg/constants"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/request"
+	"agent-desk/internal/pkg/dto/response"
 	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/pkg/errorsx"
 	"agent-desk/internal/pkg/eventbus"
@@ -402,6 +404,54 @@ func (s *conversationService) CloseCustomerConversation(conversationID int64, ex
 	return s.closeConversation(conversationID, enums.IMSenderTypeCustomer, "", nil)
 }
 
+func (s *conversationService) ResumeAIConversation(conversationID int64, reason string, operator *dto.AuthPrincipal) error {
+	if operator == nil {
+		return errorsx.UnauthorizedI18n("error.auth.expired")
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "人工处理完成，恢复 AI 接待"
+	}
+	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		conversation := repositories.ConversationRepository.Get(ctx.Tx, conversationID)
+		if conversation == nil {
+			return errorsx.InvalidParamI18n("error.e0116")
+		}
+		if !s.canResumeAIConversation(conversation, operator) {
+			return errorsx.ForbiddenI18n("error.e0221")
+		}
+		now := time.Now()
+		if err := ConversationAssignmentService.FinishActiveAssignments(ctx, conversationID, now); err != nil {
+			return err
+		}
+		if err := repositories.ConversationRepository.Updates(ctx.Tx, conversationID, map[string]any{
+			"status":              enums.IMConversationStatusAIServing,
+			"current_team_id":     0,
+			"current_assignee_id": 0,
+			"update_user_id":      operator.UserID,
+			"update_user_name":    operator.Username,
+			"updated_at":          now,
+		}); err != nil {
+			return err
+		}
+		return ConversationEventLogService.CreateEvent(ctx, conversationID, enums.IMEventTypeTransfer, enums.IMSenderTypeAgent, operator.UserID, "恢复 AI 接待", s.buildEventPayload(map[string]any{
+			"fromStatus":     conversation.Status,
+			"toStatus":       enums.IMConversationStatusAIServing,
+			"fromAssigneeId": conversation.CurrentAssigneeID,
+			"toAssigneeId":   int64(0),
+			"fromTeamId":     conversation.CurrentTeamID,
+			"toTeamId":       int64(0),
+			"reason":         reason,
+		}))
+	}); err != nil {
+		return err
+	}
+	if conversation := s.Get(conversationID); conversation != nil {
+		WsService.PublishConversationChanged(conversation, enums.IMRealtimeEventConversationUpdated)
+	}
+	return nil
+}
+
 func (s *conversationService) closeConversation(conversationID int64, senderType enums.IMSenderType, closeReason string, operator *dto.AuthPrincipal) error {
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		conversation := repositories.ConversationRepository.Get(ctx.Tx, conversationID)
@@ -688,6 +738,266 @@ func (s *conversationService) BuildConversationSummary(conversation *models.Conv
 	return strings.TrimSpace(conversation.CustomerName)
 }
 
+func (s *conversationService) BuildHandoffContext(conversation *models.Conversation, reason string) string {
+	if conversation == nil {
+		return ""
+	}
+	lines := make([]string, 0, 10)
+	if name := strings.TrimSpace(conversation.CustomerName); name != "" {
+		lines = append(lines, "客户: "+name)
+	}
+	if lead := s.findConversationLead(conversation); lead != nil {
+		lines = append(lines, buildLeadHandoffLines(lead)...)
+	}
+	if summary := strings.TrimSpace(s.BuildConversationSummary(conversation)); summary != "" {
+		lines = append(lines, "会话摘要: "+summary)
+	}
+	if recent := s.buildRecentMessageSummary(conversation.ID, 4); recent != "" {
+		lines = append(lines, "最近对话:\n"+recent)
+	}
+	return strings.Join(dedupeNonBlankLines(lines), "\n")
+}
+
+func (s *conversationService) BuildFollowUpAdvice(conversationID int64) (response.ConversationFollowUpAdviceResponse, error) {
+	ret := response.ConversationFollowUpAdviceResponse{
+		ConversationID: conversationID,
+		Source:         "conversation",
+	}
+	conversation := s.Get(conversationID)
+	if conversation == nil {
+		return ret, errorsx.InvalidParamI18n("error.e0116")
+	}
+	if lead := s.findConversationLead(conversation); lead != nil {
+		followUps := SalesLeadService.FindFollowUps(lead.ID)
+		ret.LeadID = lead.ID
+		ret.Source = "sales_lead"
+		ret.SalesLeadFollowUpAdviceResult = SalesLeadService.BuildFollowUpAdvice(lead, followUps)
+		if recent := strings.TrimSpace(s.buildRecentMessageSummary(conversation.ID, 4)); recent != "" && !strings.Contains(ret.CopyText, "最近对话：") {
+			ret.CopyText = strings.TrimSpace(ret.CopyText) + "\n最近对话：\n" + recent
+		}
+		return ret, nil
+	}
+
+	ret.SalesLeadFollowUpAdviceResult = s.buildConversationOnlyFollowUpAdvice(conversation)
+	return ret, nil
+}
+
+func (s *conversationService) buildConversationOnlyFollowUpAdvice(conversation *models.Conversation) response.SalesLeadFollowUpAdviceResult {
+	if conversation == nil {
+		return response.SalesLeadFollowUpAdviceResult{}
+	}
+	customerName := strings.TrimSpace(conversation.CustomerName)
+	if customerName == "" {
+		customerName = fmt.Sprintf("会话#%d客户", conversation.ID)
+	}
+	summary := strings.TrimSpace(s.BuildConversationSummary(conversation))
+	recent := strings.TrimSpace(s.buildRecentMessageSummary(conversation.ID, 6))
+	customerSummaryParts := []string{customerName}
+	if conversation.CustomerID > 0 {
+		customerSummaryParts = append(customerSummaryParts, fmt.Sprintf("客户ID %d", conversation.CustomerID))
+	}
+	if summary != "" && summary != customerName {
+		customerSummaryParts = append(customerSummaryParts, limitText(summary, 160))
+	}
+	nextAction := "先确认客户核心需求、联系方式、预算区间和是否方便到店体验，再根据需求建立销售线索并安排跟进。"
+	scriptName := "您好"
+	if customerName != "" && !strings.Contains(customerName, "会话#") {
+		scriptName = customerName + "您好"
+	}
+	script := fmt.Sprintf("%s，我看到您刚才咨询的内容。为了帮您推荐得更准，我想再确认一下使用人、尺寸、软硬偏好、预算以及是否方便到店体验，我会据此给您整理 1-2 个更合适的方案。", scriptName)
+	riskHints := []string{"尚未形成销售线索"}
+	if recent == "" {
+		riskHints = append(riskHints, "最近对话内容不足")
+	}
+	if conversation.CustomerID <= 0 {
+		riskHints = append(riskHints, "未关联 CRM 客户")
+	}
+
+	copyLines := []string{
+		"【会话跟进摘要】",
+		"客户：" + customerName,
+		fmt.Sprintf("会话ID：%d", conversation.ID),
+	}
+	if summary != "" {
+		copyLines = append(copyLines, "会话摘要："+limitText(summary, 240))
+	}
+	if recent != "" {
+		copyLines = append(copyLines, "最近对话：\n"+recent)
+	}
+	copyLines = append(copyLines, "建议下一步："+nextAction, "建议话术："+script)
+	if len(riskHints) > 0 {
+		copyLines = append(copyLines, "注意事项："+strings.Join(riskHints, "；"))
+	}
+
+	return response.SalesLeadFollowUpAdviceResult{
+		CustomerSummary: strings.Join(dedupeNonBlankLines(customerSummaryParts), "｜"),
+		NextAction:      nextAction,
+		Script:          script,
+		CopyText:        strings.Join(copyLines, "\n"),
+		RiskHints:       riskHints,
+	}
+}
+
+func (s *conversationService) findConversationLead(conversation *models.Conversation) *models.SalesLead {
+	if conversation == nil {
+		return nil
+	}
+	if conversation.ID > 0 {
+		if lead := repositories.SalesLeadRepository.FindOne(sqls.DB(), sqls.NewCnd().
+			Where("conversation_id = ?", conversation.ID).
+			Where("status <> ?", enums.SalesLeadStatusClosed).
+			Desc("id")); lead != nil {
+			return lead
+		}
+	}
+	if conversation.CustomerID > 0 {
+		return repositories.SalesLeadRepository.FindOne(sqls.DB(), sqls.NewCnd().
+			Where("customer_id = ?", conversation.CustomerID).
+			Where("status <> ?", enums.SalesLeadStatusClosed).
+			Desc("id"))
+	}
+	return nil
+}
+
+func buildLeadHandoffLines(lead *models.SalesLead) []string {
+	if lead == nil {
+		return nil
+	}
+	lines := make([]string, 0, 8)
+	if name := strings.TrimSpace(lead.CustomerName); name != "" {
+		lines = append(lines, "线索姓名: "+name)
+	}
+	if phone := strings.TrimSpace(lead.Phone); phone != "" {
+		lines = append(lines, "手机号: "+phone)
+	}
+	if wechat := strings.TrimSpace(lead.WeChat); wechat != "" {
+		lines = append(lines, "微信: "+wechat)
+	}
+	if city := strings.TrimSpace(lead.City); city != "" {
+		lines = append(lines, "城市: "+city)
+	}
+	if product := strings.TrimSpace(lead.InterestedProducts); product != "" {
+		lines = append(lines, "关注产品: "+product)
+	}
+	if budget := formatLeadBudget(lead.BudgetMin, lead.BudgetMax); budget != "" {
+		lines = append(lines, "预算: "+budget)
+	}
+	if appointment := formatLeadAppointment(lead); appointment != "" {
+		lines = append(lines, "预约: "+appointment)
+	}
+	lines = append(lines, "意向等级: "+salesLeadIntentLabel(lead.IntentLevel))
+	lines = append(lines, "购买阶段: "+salesLeadStageLabel(lead.BuyingStage))
+	if demand := strings.TrimSpace(lead.DemandSummary); demand != "" {
+		lines = append(lines, "需求摘要: "+limitText(demand, 180))
+	}
+	return lines
+}
+
+func formatLeadAppointment(lead *models.SalesLead) string {
+	if lead == nil {
+		return ""
+	}
+	parts := make([]string, 0, 4)
+	if lead.AppointmentAt != nil {
+		parts = append(parts, lead.AppointmentAt.Format("2006-01-02 15:04"))
+	}
+	if text := strings.TrimSpace(lead.AppointmentTimeText); text != "" {
+		parts = append(parts, text)
+	}
+	if store := strings.TrimSpace(lead.AppointmentStore); store != "" {
+		parts = append(parts, store)
+	}
+	if lead.AppointmentPeople > 0 {
+		parts = append(parts, fmt.Sprintf("%d人", lead.AppointmentPeople))
+	}
+	return strings.Join(dedupeNonBlankLines(parts), " / ")
+}
+
+func (s *conversationService) buildRecentMessageSummary(conversationID int64, limit int) string {
+	if conversationID <= 0 {
+		return ""
+	}
+	if limit <= 0 {
+		limit = 4
+	}
+	messages := repositories.MessageRepository.Find(sqls.DB(), sqls.NewCnd().
+		Where("conversation_id = ?", conversationID).
+		Where("message_type = ?", enums.IMMessageTypeText).
+		Where("recalled_at IS NULL").
+		Desc("id").
+		Limit(limit))
+	if len(messages) == 0 {
+		return ""
+	}
+	slices.Reverse(messages)
+	lines := make([]string, 0, len(messages))
+	for _, message := range messages {
+		content := limitText(message.Content, 120)
+		if content == "" {
+			continue
+		}
+		lines = append(lines, enums.GetIMSenderTypeLabel(message.SenderType)+": "+content)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func dedupeNonBlankLines(lines []string) []string {
+	ret := make([]string, 0, len(lines))
+	seen := make(map[string]bool, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || seen[line] {
+			continue
+		}
+		seen[line] = true
+		ret = append(ret, line)
+	}
+	return ret
+}
+
+func formatLeadBudget(min, max int64) string {
+	switch {
+	case min > 0 && max > 0:
+		return fmt.Sprintf("%d-%d元", min, max)
+	case max > 0:
+		return fmt.Sprintf("%d元左右", max)
+	case min > 0:
+		return fmt.Sprintf("%d元以上", min)
+	default:
+		return ""
+	}
+}
+
+func salesLeadIntentLabel(value enums.SalesLeadIntent) string {
+	switch value {
+	case enums.SalesLeadIntentHigh:
+		return "高"
+	case enums.SalesLeadIntentMedium:
+		return "中"
+	case enums.SalesLeadIntentLow:
+		return "低"
+	default:
+		return "未知"
+	}
+}
+
+func salesLeadStageLabel(value enums.SalesLeadStage) string {
+	switch value {
+	case enums.SalesLeadStageConsulting:
+		return "咨询了解"
+	case enums.SalesLeadStageComparing:
+		return "对比方案"
+	case enums.SalesLeadStageAppointment:
+		return "预约到店"
+	case enums.SalesLeadStageReadyToBuy:
+		return "临门购买"
+	case enums.SalesLeadStageAfterSales:
+		return "售后咨询"
+	default:
+		return "未知"
+	}
+}
+
 func (s *conversationService) getCustomerName(db *gorm.DB, customerID int64) string {
 	if customerID <= 0 {
 		return ""
@@ -710,6 +1020,24 @@ func (s *conversationService) canCloseConversation(conversation *models.Conversa
 
 func (s *conversationService) canTransferConversation(conversation *models.Conversation, operator *dto.AuthPrincipal) bool {
 	if conversation == nil || operator == nil {
+		return false
+	}
+	if s.isAdmin(operator) {
+		return true
+	}
+	return conversation.Status == enums.IMConversationStatusActive &&
+		conversation.CurrentAssigneeID > 0 &&
+		conversation.CurrentAssigneeID == operator.UserID
+}
+
+func (s *conversationService) canResumeAIConversation(conversation *models.Conversation, operator *dto.AuthPrincipal) bool {
+	if conversation == nil || operator == nil {
+		return false
+	}
+	if conversation.ServiceMode == enums.IMConversationServiceModeHumanOnly ||
+		conversation.ServiceMode == enums.IMConversationServiceModeAIOnly ||
+		conversation.Status == enums.IMConversationStatusClosed ||
+		conversation.Status == enums.IMConversationStatusAIServing {
 		return false
 	}
 	if s.isAdmin(operator) {

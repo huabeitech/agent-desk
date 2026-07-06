@@ -543,6 +543,7 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 
 	// 客户发送消息，触发AI回复
 	if senderType == enums.IMSenderTypeCustomer {
+		SalesLeadService.ExtractFromCustomerMessageAsync(*conversation, *message)
 		if TriggerAIReplyAsyncHook != nil {
 			TriggerAIReplyAsyncHook(*conversation, *message)
 		}
@@ -670,10 +671,11 @@ func (s *messageService) ValidateConversationSender(conversationID int64, sender
 		if operator == nil {
 			return nil, errorsx.UnauthorizedI18n("error.auth.expired")
 		}
-		if conversation.Status != enums.IMConversationStatusAIServing && !s.allowAIMessageOnPendingHandoff(conversation) {
+		allowHandoffHold := s.allowAIMessageOnHandoffHold(conversation)
+		if conversation.Status != enums.IMConversationStatusAIServing && !allowHandoffHold {
 			return nil, errorsx.ForbiddenI18n("error.e0189")
 		}
-		if conversation.CurrentAssigneeID != 0 {
+		if conversation.CurrentAssigneeID != 0 && !allowHandoffHold {
 			return nil, errorsx.ForbiddenI18n("error.e0192")
 		}
 	case enums.IMSenderTypeCustomer:
@@ -687,12 +689,25 @@ func (s *messageService) ValidateConversationSender(conversationID int64, sender
 }
 
 func (s *messageService) allowAIMessageOnPendingHandoff(conversation *models.Conversation) bool {
+	return s.allowAIMessageOnHandoffHold(conversation)
+}
+
+func (s *messageService) allowAIMessageOnHandoffHold(conversation *models.Conversation) bool {
 	if conversation == nil {
 		return false
 	}
-	return conversation.Status == enums.IMConversationStatusPending &&
-		conversation.HandoffAt != nil &&
-		conversation.CurrentAssigneeID == 0
+	if conversation.HandoffAt == nil {
+		return false
+	}
+	if conversation.Status != enums.IMConversationStatusPending && conversation.Status != enums.IMConversationStatusActive {
+		return false
+	}
+	humanReply := repositories.MessageRepository.FindOne(sqls.DB(), sqls.NewCnd().
+		Where("conversation_id = ?", conversation.ID).
+		Where("sender_type = ?", enums.IMSenderTypeAgent).
+		Where("created_at >= ?", *conversation.HandoffAt).
+		Asc("id"))
+	return humanReply == nil
 }
 
 func (s *messageService) suffixFilenameForSummary(filename string) string {

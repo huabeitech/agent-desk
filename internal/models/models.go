@@ -14,6 +14,10 @@ var Models = []any{
 	&Customer{},
 	&CustomerIdentity{},
 	&CustomerContact{},
+	&SalesLead{},
+	&LeadFollowUp{},
+	&Product{},
+	&Promotion{},
 	&Role{},
 	&Permission{},
 	&UserRole{},
@@ -63,6 +67,7 @@ var Models = []any{
 	&AIWorkflowNodeRun{},
 	&ConversationInterrupt{},
 	&SystemConfig{},
+	&DigitalStoreDeliveryRecord{},
 }
 
 type Migration struct {
@@ -85,6 +90,30 @@ type SystemConfig struct {
 	Title       string       `gorm:"type:varchar(200);not null;default:''"`
 	Description string       `gorm:"type:text"`
 	Status      enums.Status `gorm:"type:int;not null;default:0;index"`
+	AuditFields
+}
+
+// DigitalStoreDeliveryRecord 记录单商家交付/上线验收的归档快照。
+type DigitalStoreDeliveryRecord struct {
+	ID                   int64        `gorm:"primaryKey;autoIncrement"`
+	BrandName            string       `gorm:"type:varchar(100);not null;default:'';index"`
+	StoreName            string       `gorm:"type:varchar(150);not null;default:'';index"`
+	Ready                bool         `gorm:"not null;default:false;index"`
+	AcceptanceStatus     string       `gorm:"type:varchar(30);not null;default:'';index"`
+	AcceptanceSummary    string       `gorm:"type:text"`
+	AcceptanceCommand    string       `gorm:"type:varchar(500);not null;default:''"`
+	ScenarioTotal        int          `gorm:"type:int;not null;default:0"`
+	PassedTotal          int          `gorm:"type:int;not null;default:0"`
+	FailedTotal          int          `gorm:"type:int;not null;default:0"`
+	AcceptanceStartedAt  *time.Time   `gorm:"type:datetime;index"`
+	AcceptanceFinishedAt *time.Time   `gorm:"type:datetime;index"`
+	AcceptanceResultJSON string       `gorm:"type:longtext"`
+	DashboardURL         string       `gorm:"type:varchar(500);not null;default:''"`
+	ChatURL              string       `gorm:"type:varchar(500);not null;default:''"`
+	WebChannelCode       string       `gorm:"type:varchar(100);not null;default:'';index"`
+	ReportMarkdown       string       `gorm:"type:longtext"`
+	ReportJSON           string       `gorm:"type:longtext"`
+	Status               enums.Status `gorm:"type:int;not null;default:0;index"`
 	AuditFields
 }
 
@@ -221,6 +250,100 @@ type CustomerContact struct {
 	Source       string            `gorm:"type:varchar(30);not null;default:'';index"`                                  // Source 为来源：manual/import/system。
 	Status       enums.Status      `gorm:"type:int;not null;default:0;index"`                                           // Status 为联系方式状态。
 	Remark       string            `gorm:"type:varchar(255);not null;default:''"`                                       // Remark 为备注。
+	AuditFields
+}
+
+// SalesLead 销售线索。
+//
+// 用于承接 AI 数字店长从会话中识别出的客户购买意向、联系方式和跟进状态。
+type SalesLead struct {
+	ID                  int64                 `gorm:"primaryKey;autoIncrement"`
+	CustomerID          int64                 `gorm:"type:bigint;not null;default:0;index"`
+	ConversationID      int64                 `gorm:"type:bigint;not null;default:0;index"`
+	CustomerName        string                `gorm:"type:varchar(100);not null;default:'';index"`
+	Phone               string                `gorm:"type:varchar(32);not null;default:'';index"`
+	WeChat              string                `gorm:"type:varchar(100);not null;default:'';index"`
+	City                string                `gorm:"type:varchar(100);not null;default:'';index"`
+	AddressHint         string                `gorm:"type:varchar(255);not null;default:''"`
+	BudgetMin           int64                 `gorm:"type:bigint;not null;default:0;index"`
+	BudgetMax           int64                 `gorm:"type:bigint;not null;default:0;index"`
+	InterestedProducts  string                `gorm:"type:varchar(500);not null;default:''"`
+	DemandSummary       string                `gorm:"type:text"`
+	IntentLevel         enums.SalesLeadIntent `gorm:"type:varchar(30);not null;default:'unknown';index"`
+	BuyingStage         enums.SalesLeadStage  `gorm:"type:varchar(30);not null;default:'unknown';index"`
+	AppointmentAt       *time.Time            `gorm:"type:datetime;index"`
+	AppointmentTimeText string                `gorm:"type:varchar(100);not null;default:''"`
+	AppointmentStore    string                `gorm:"type:varchar(150);not null;default:'';index"`
+	AppointmentPeople   int                   `gorm:"type:int;not null;default:0"`
+	AppointmentRemark   string                `gorm:"type:text"`
+	SourceChannel       string                `gorm:"type:varchar(50);not null;default:'';index"`
+	OwnerUserID         int64                 `gorm:"type:bigint;not null;default:0;index"`
+	Status              enums.SalesLeadStatus `gorm:"type:varchar(30);not null;default:'new';index"`
+	NextFollowUpAt      *time.Time            `gorm:"type:datetime;index"`
+	LastMessageID       int64                 `gorm:"type:bigint;not null;default:0;index"`
+	MergeKey            string                `gorm:"type:varchar(50);not null;default:'';index"`
+	MergeReason         string                `gorm:"type:text"`
+	MergedAt            *time.Time            `gorm:"type:datetime;index"`
+	Remark              string                `gorm:"type:text"`
+	AuditFields
+}
+
+// LeadFollowUp 销售线索跟进记录。
+type LeadFollowUp struct {
+	ID             int64      `gorm:"primaryKey;autoIncrement"`
+	LeadID         int64      `gorm:"type:bigint;not null;index"`
+	OperatorID     int64      `gorm:"type:bigint;not null;default:0;index"`
+	OperatorName   string     `gorm:"type:varchar(100);not null;default:''"`
+	Content        string     `gorm:"type:text"`
+	NextAction     string     `gorm:"type:varchar(255);not null;default:''"`
+	NextFollowUpAt *time.Time `gorm:"type:datetime;index"`
+	CreatedAt      time.Time  `gorm:"type:datetime;not null;index"`
+}
+
+// Product 商家产品库。
+//
+// 用于 AI 数字店长按预算、人群和场景进行导购推荐；可同步为 FAQ 知识块参与 RAG。
+type Product struct {
+	ID                 int64        `gorm:"primaryKey;autoIncrement"`
+	Name               string       `gorm:"type:varchar(150);not null;default:'';index"`
+	Category           string       `gorm:"type:varchar(100);not null;default:'';index"`
+	PriceMin           int64        `gorm:"type:bigint;not null;default:0;index"`
+	PriceMax           int64        `gorm:"type:bigint;not null;default:0;index"`
+	SellingPoints      string       `gorm:"type:text"`
+	SuitablePeople     string       `gorm:"type:text"`
+	UnsuitablePeople   string       `gorm:"type:text"`
+	Scenarios          string       `gorm:"type:text"`
+	Specs              string       `gorm:"type:text"`
+	IndustryAttributes string       `gorm:"type:text"`
+	ImageURL           string       `gorm:"type:varchar(1024);not null;default:''"`
+	Priority           int          `gorm:"type:int;not null;default:0;index"`
+	KnowledgeBaseID    int64        `gorm:"type:bigint;not null;default:0;index"`
+	KnowledgeFAQID     int64        `gorm:"type:bigint;not null;default:0;index"`
+	Status             enums.Status `gorm:"type:int;not null;default:0;index"`
+	Remark             string       `gorm:"type:text"`
+	AuditFields
+}
+
+// Promotion 商家活动/优惠库。
+//
+// 用于 AI 数字店长在推荐、预约和留资场景中引用当前有效权益；可同步为 FAQ 知识块参与 RAG。
+type Promotion struct {
+	ID                 int64        `gorm:"primaryKey;autoIncrement"`
+	Name               string       `gorm:"type:varchar(150);not null;default:'';index"`
+	PromotionType      string       `gorm:"type:varchar(80);not null;default:'';index"`
+	Description        string       `gorm:"type:text"`
+	ApplicableProducts string       `gorm:"type:varchar(500);not null;default:'';index"`
+	StartAt            *time.Time   `gorm:"type:datetime;index"`
+	EndAt              *time.Time   `gorm:"type:datetime;index"`
+	DiscountRule       string       `gorm:"type:text"`
+	StoreBenefit       string       `gorm:"type:text"`
+	AppointmentBenefit string       `gorm:"type:text"`
+	ScriptSuggestion   string       `gorm:"type:text"`
+	Priority           int          `gorm:"type:int;not null;default:0;index"`
+	KnowledgeBaseID    int64        `gorm:"type:bigint;not null;default:0;index"`
+	KnowledgeFAQID     int64        `gorm:"type:bigint;not null;default:0;index"`
+	Status             enums.Status `gorm:"type:int;not null;default:0;index"`
+	Remark             string       `gorm:"type:text"`
 	AuditFields
 }
 

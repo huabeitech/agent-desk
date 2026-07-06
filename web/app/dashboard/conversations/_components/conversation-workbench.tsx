@@ -2,11 +2,13 @@
 
 import {
   ArrowRightLeftIcon,
+  BotMessageSquareIcon,
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
   CircleUserRoundIcon,
   CircleXIcon,
+  ClipboardListIcon,
   FilePlus2Icon,
   Menu,
   MoreHorizontalIcon,
@@ -42,6 +44,8 @@ import {
   type AgentConversationFilterKey,
   useAgentConversationsStore,
 } from "@/lib/stores/agent-conversations";
+import { generateConversationFollowUpAdvice } from "@/lib/api/admin";
+import { resumeAIConversation } from "@/lib/api/agent";
 import { CreateTicketFromConversationDialog } from "../../tickets/_components/create-ticket-from-conversation-dialog";
 import { ChatPanel } from "./chat-panel";
 import { ConversationInfoPanel } from "./conversation-info-panel";
@@ -84,6 +88,8 @@ export function ConversationWorkbench() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [createTicketOpen, setCreateTicketOpen] = useState(false);
+  const [resumingAI, setResumingAI] = useState(false);
+  const [generatingFollowUpAdvice, setGeneratingFollowUpAdvice] = useState(false);
   const sidebarPanelRef = useRef<PanelImperativeHandle | null>(null);
   const infoPanelRef = useRef<PanelImperativeHandle | null>(null);
   const filterContainerRef = useRef<HTMLDivElement | null>(null);
@@ -119,6 +125,11 @@ export function ConversationWorkbench() {
     agentConversationFilterOptions.find((opt) => opt.value === conversationFilter) ??
     agentConversationFilterOptions[0];
   const getFilterLabel = (labelKey: string) => t(labelKey);
+  const canResumeAI =
+    Boolean(conversation) &&
+    conversation?.serviceMode === 3 &&
+    conversation.status !== 1 &&
+    conversation.status !== 4;
 
   useEffect(() => {
     void loadConversations().catch((error) => {
@@ -132,6 +143,39 @@ export function ConversationWorkbench() {
       forceLoading: false,
       reset: false,
     });
+  }
+
+  async function handleResumeAI() {
+    if (!conversation || resumingAI || !canResumeAI) return;
+    setResumingAI(true);
+    try {
+      await resumeAIConversation(conversation.id, t("conversation.resumeAIReason"));
+      toast.success(t("conversation.resumeAISuccess"));
+      await loadConversations();
+      await loadMessages(conversation.id, { forceLoading: true, reset: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("conversation.resumeAIFailed"));
+    } finally {
+      setResumingAI(false);
+    }
+  }
+
+  async function handleCopyFollowUpAdvice() {
+    if (!conversation || generatingFollowUpAdvice) return;
+    setGeneratingFollowUpAdvice(true);
+    try {
+      const advice = await generateConversationFollowUpAdvice(conversation.id);
+      if (!advice.copyText) {
+        toast.error("暂时没有可复制的跟进摘要");
+        return;
+      }
+      await navigator.clipboard.writeText(advice.copyText);
+      toast.success(advice.leadId ? "线索跟进摘要已复制" : "会话跟进摘要已复制");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "生成跟进摘要失败");
+    } finally {
+      setGeneratingFollowUpAdvice(false);
+    }
   }
 
   const handleSidebarToggle = () => {
@@ -370,11 +414,25 @@ export function ConversationWorkbench() {
                 {t("conversation.createTicket")}
               </DropdownMenuItem>
               <DropdownMenuItem
+                onClick={() => void handleCopyFollowUpAdvice()}
+                disabled={!conversation || generatingFollowUpAdvice}
+              >
+                <ClipboardListIcon />
+                {generatingFollowUpAdvice ? "生成中..." : "复制跟进摘要"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 onClick={() => setTransferOpen(true)}
                 disabled={!conversation || conversation.status !== 3}
               >
                 <ArrowRightLeftIcon />
                 {t("conversation.transferConversation")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => void handleResumeAI()}
+                disabled={!canResumeAI || resumingAI}
+              >
+                <BotMessageSquareIcon />
+                {resumingAI ? t("conversation.resumingAI") : t("conversation.resumeAI")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setCloseOpen(true)}

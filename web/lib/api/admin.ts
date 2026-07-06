@@ -138,6 +138,17 @@ export type AdminConversationDetail = AdminConversation & {
   participants?: ConversationParticipant[]
 }
 
+export type ConversationFollowUpAdvice = {
+  conversationId: number
+  leadId?: number
+  source: string
+  customerSummary: string
+  nextAction: string
+  script: string
+  copyText: string
+  riskHints: string[]
+}
+
 export type AdminMessage = {
   id: number
   conversationId: number
@@ -1013,6 +1024,16 @@ export function markConversationRead(conversationId: number, messageId = 0) {
   })
 }
 
+export function generateConversationFollowUpAdvice(conversationId: number) {
+  return request<ConversationFollowUpAdvice>(
+    "/api/dashboard/conversation/follow_up_advice",
+    {
+      method: "POST",
+      body: JSON.stringify({ conversationId }),
+    }
+  )
+}
+
 export function sendConversationMessage(payload: {
   conversationId: number
   messageType: string
@@ -1598,6 +1619,11 @@ export type KnowledgeRetrieveLog = {
   completionTokens: number
   modelName: string
   traceData: string
+  feedbackCount: number
+  negativeFeedbackCount: number
+  latestFeedbackType: number
+  latestFeedbackTypeName: string
+  latestFeedbackReason: string
   createdAt: string
 }
 
@@ -1625,9 +1651,22 @@ export type KnowledgeRetrieveHit = {
   createdAt: string
 }
 
+export type KnowledgeFeedback = {
+  id: number
+  retrieveLogId: number
+  feedbackType: number
+  feedbackTypeName: string
+  feedbackReason: string
+  userId: number
+  agentId: number
+  remark: string
+  createdAt: string
+}
+
 export type KnowledgeRetrieveLogDetail = {
   log: KnowledgeRetrieveLog
   hits: KnowledgeRetrieveHit[]
+  feedbacks: KnowledgeFeedback[]
 }
 
 export type KnowledgeRetrieveLogListQuery = {
@@ -1638,6 +1677,7 @@ export type KnowledgeRetrieveLogListQuery = {
   answerStatus?: number
   chunkProvider?: string
   rerankEnabled?: number
+  feedbackState?: string
   page?: number
   limit?: number
 }
@@ -1652,6 +1692,43 @@ export type KnowledgeSearchPayload = {
 
 export type KnowledgeAnswerPayload = KnowledgeSearchPayload & {
   answerMode?: number
+}
+
+export type CreateKnowledgeFeedbackPayload = {
+  retrieveLogId: number
+  feedbackType: number
+  feedbackReason?: string
+  remark?: string
+}
+
+export type CreateKnowledgeFAQDraftFromRetrieveLogPayload = {
+  retrieveLogId: number
+  answer?: string
+  remark?: string
+}
+
+export type BatchCreateKnowledgeFAQDraftsFromRetrieveLogsPayload = {
+  knowledgeBaseId: number
+  answerStatuses?: number[]
+  includeNegativeFeedbacks?: boolean
+  limit?: number
+  answer?: string
+  remark?: string
+}
+
+export type KnowledgeFAQDraftBatchSkipReason = {
+  retrieveLogId: number
+  question: string
+  reason: string
+}
+
+export type KnowledgeFAQDraftBatchCreateResult = {
+  totalCandidates: number
+  createdCount: number
+  reusedCount: number
+  skippedCount: number
+  draftIds: number[]
+  skipped: KnowledgeFAQDraftBatchSkipReason[]
 }
 
 export type CreateKnowledgeDocumentPayload = {
@@ -1677,6 +1754,11 @@ export type CreateKnowledgeFAQPayload = {
 
 export type UpdateKnowledgeFAQPayload = CreateKnowledgeFAQPayload & {
   id: number
+}
+
+export type UpdateKnowledgeFAQStatusPayload = {
+  id: number
+  status: number
 }
 
 export type BatchMoveKnowledgeContentPayload = {
@@ -1901,6 +1983,13 @@ export function updateKnowledgeFAQ(payload: UpdateKnowledgeFAQPayload) {
   })
 }
 
+export function updateKnowledgeFAQStatus(payload: UpdateKnowledgeFAQStatusPayload) {
+  return request<void>("/api/dashboard/knowledge-faq/update_status", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
 export function deleteKnowledgeFAQ(id: number) {
   return request<void>("/api/dashboard/knowledge-faq/delete", {
     method: "POST",
@@ -1987,6 +2076,32 @@ export function fetchKnowledgeRetrieveLogs(query: KnowledgeRetrieveLogListQuery)
 
 export function fetchKnowledgeRetrieveLog(id: number) {
   return request<KnowledgeRetrieveLogDetail>(`/api/dashboard/knowledge-retrieve-log/${id}`)
+}
+
+export function createKnowledgeFeedback(payload: CreateKnowledgeFeedbackPayload) {
+  return request<KnowledgeFeedback>("/api/dashboard/knowledge-retrieve-log/feedback/create", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createKnowledgeFAQDraftFromRetrieveLog(payload: CreateKnowledgeFAQDraftFromRetrieveLogPayload) {
+  return request<KnowledgeFAQ>("/api/dashboard/knowledge-retrieve-log/faq-draft/create", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export function batchCreateKnowledgeFAQDraftsFromRetrieveLogs(
+  payload: BatchCreateKnowledgeFAQDraftsFromRetrieveLogsPayload
+) {
+  return request<KnowledgeFAQDraftBatchCreateResult>(
+    "/api/dashboard/knowledge-retrieve-log/faq-draft/batch-create",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  )
 }
 
 export type AdminAsset = {

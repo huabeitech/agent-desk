@@ -51,3 +51,10 @@ type ConversationDetailResponse struct {
 	ConversationResponse
 	Participants []ConversationParticipantResponse `json:"participants,omitempty"`
 }
+
+type ConversationFollowUpAdviceResponse struct {
+	ConversationID int64  `json:"conversationId"`
+	LeadID         int64  `json:"leadId,omitempty"`
+	Source         string `json:"source"`
+	SalesLeadFollowUpAdviceResult
+}

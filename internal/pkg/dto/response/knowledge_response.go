@@ -189,39 +189,44 @@ type KnowledgeCitation struct {
 }
 
 type KnowledgeRetrieveLogResponse struct {
-	ID                 int64     `json:"id"`
-	KnowledgeBaseID    int64     `json:"knowledgeBaseId"`
-	KnowledgeBaseName  string    `json:"knowledgeBaseName,omitempty"`
-	Channel            string    `json:"channel"`
-	ChannelName        string    `json:"channelName"`
-	Scene              string    `json:"scene"`
-	SceneName          string    `json:"sceneName"`
-	SessionID          string    `json:"sessionId"`
-	ConversationID     int64     `json:"conversationId"`
-	RequestID          string    `json:"requestId"`
-	Question           string    `json:"question"`
-	RewriteQuestion    string    `json:"rewriteQuestion"`
-	Answer             string    `json:"answer"`
-	AnswerStatus       int       `json:"answerStatus"`
-	AnswerStatusName   string    `json:"answerStatusName"`
-	HitCount           int       `json:"hitCount"`
-	TopScore           float64   `json:"topScore"`
-	ChunkProvider      string    `json:"chunkProvider"`
-	ChunkTargetTokens  int       `json:"chunkTargetTokens"`
-	ChunkMaxTokens     int       `json:"chunkMaxTokens"`
-	ChunkOverlapTokens int       `json:"chunkOverlapTokens"`
-	RerankEnabled      bool      `json:"rerankEnabled"`
-	RerankLimit        int       `json:"rerankLimit"`
-	CitationCount      int       `json:"citationCount"`
-	UsedChunkCount     int       `json:"usedChunkCount"`
-	LatencyMs          int64     `json:"latencyMs"`
-	RetrieveMs         int64     `json:"retrieveMs"`
-	GenerateMs         int64     `json:"generateMs"`
-	PromptTokens       int       `json:"promptTokens"`
-	CompletionTokens   int       `json:"completionTokens"`
-	ModelName          string    `json:"modelName"`
-	TraceData          string    `json:"traceData"`
-	CreatedAt          time.Time `json:"createdAt"`
+	ID                     int64     `json:"id"`
+	KnowledgeBaseID        int64     `json:"knowledgeBaseId"`
+	KnowledgeBaseName      string    `json:"knowledgeBaseName,omitempty"`
+	Channel                string    `json:"channel"`
+	ChannelName            string    `json:"channelName"`
+	Scene                  string    `json:"scene"`
+	SceneName              string    `json:"sceneName"`
+	SessionID              string    `json:"sessionId"`
+	ConversationID         int64     `json:"conversationId"`
+	RequestID              string    `json:"requestId"`
+	Question               string    `json:"question"`
+	RewriteQuestion        string    `json:"rewriteQuestion"`
+	Answer                 string    `json:"answer"`
+	AnswerStatus           int       `json:"answerStatus"`
+	AnswerStatusName       string    `json:"answerStatusName"`
+	HitCount               int       `json:"hitCount"`
+	TopScore               float64   `json:"topScore"`
+	ChunkProvider          string    `json:"chunkProvider"`
+	ChunkTargetTokens      int       `json:"chunkTargetTokens"`
+	ChunkMaxTokens         int       `json:"chunkMaxTokens"`
+	ChunkOverlapTokens     int       `json:"chunkOverlapTokens"`
+	RerankEnabled          bool      `json:"rerankEnabled"`
+	RerankLimit            int       `json:"rerankLimit"`
+	CitationCount          int       `json:"citationCount"`
+	UsedChunkCount         int       `json:"usedChunkCount"`
+	LatencyMs              int64     `json:"latencyMs"`
+	RetrieveMs             int64     `json:"retrieveMs"`
+	GenerateMs             int64     `json:"generateMs"`
+	PromptTokens           int       `json:"promptTokens"`
+	CompletionTokens       int       `json:"completionTokens"`
+	ModelName              string    `json:"modelName"`
+	TraceData              string    `json:"traceData"`
+	FeedbackCount          int64     `json:"feedbackCount"`
+	NegativeFeedbackCount  int64     `json:"negativeFeedbackCount"`
+	LatestFeedbackType     int       `json:"latestFeedbackType"`
+	LatestFeedbackTypeName string    `json:"latestFeedbackTypeName"`
+	LatestFeedbackReason   string    `json:"latestFeedbackReason"`
+	CreatedAt              time.Time `json:"createdAt"`
 }
 
 type KnowledgeRetrieveHitResponse struct {
@@ -249,8 +254,24 @@ type KnowledgeRetrieveHitResponse struct {
 }
 
 type KnowledgeRetrieveLogDetailResponse struct {
-	Log  KnowledgeRetrieveLogResponse   `json:"log"`
-	Hits []KnowledgeRetrieveHitResponse `json:"hits"`
+	Log       KnowledgeRetrieveLogResponse   `json:"log"`
+	Hits      []KnowledgeRetrieveHitResponse `json:"hits"`
+	Feedbacks []KnowledgeFeedbackResponse    `json:"feedbacks"`
+}
+
+type KnowledgeFAQDraftBatchCreateResponse struct {
+	TotalCandidates int64                              `json:"totalCandidates"`
+	CreatedCount    int64                              `json:"createdCount"`
+	ReusedCount     int64                              `json:"reusedCount"`
+	SkippedCount    int64                              `json:"skippedCount"`
+	DraftIDs        []int64                            `json:"draftIds"`
+	Skipped         []KnowledgeFAQDraftBatchSkipReason `json:"skipped"`
+}
+
+type KnowledgeFAQDraftBatchSkipReason struct {
+	RetrieveLogID int64  `json:"retrieveLogId"`
+	Question      string `json:"question"`
+	Reason        string `json:"reason"`
 }
 
 type KnowledgeFeedbackResponse struct {

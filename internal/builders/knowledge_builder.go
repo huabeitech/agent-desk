@@ -179,6 +179,20 @@ func BuildKnowledgeRetrieveHitResponse(item *models.KnowledgeRetrieveHit) respon
 	}
 }
 
+func BuildKnowledgeFeedback(item *models.KnowledgeFeedback) response.KnowledgeFeedbackResponse {
+	return response.KnowledgeFeedbackResponse{
+		ID:               item.ID,
+		RetrieveLogID:    item.RetrieveLogID,
+		FeedbackType:     item.FeedbackType,
+		FeedbackTypeName: enums.GetKnowledgeFeedbackTypeLabel(enums.KnowledgeFeedbackType(item.FeedbackType)),
+		FeedbackReason:   item.FeedbackReason,
+		UserID:           item.UserID,
+		AgentID:          item.AgentID,
+		Remark:           item.Remark,
+		CreatedAt:        item.CreatedAt,
+	}
+}
+
 func parseSimilarQuestions(raw string) []string {
 	if raw == "" {
 		return []string{}

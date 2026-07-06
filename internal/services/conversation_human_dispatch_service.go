@@ -42,10 +42,11 @@ const (
 )
 
 type HandoffDecisionResult struct {
-	Decision   HandoffDecisionType
-	TeamID     int64
-	AssigneeID int64
-	Message    string
+	Decision    HandoffDecisionType
+	TeamID      int64
+	AssigneeID  int64
+	Message     string
+	ContextText string
 }
 
 type conversationHumanDispatchService struct{}
@@ -72,6 +73,9 @@ func (s *conversationHumanDispatchService) TryOffHoursHandoffByAIWithRequestID(c
 		return true, err
 	}
 	if err := s.sendAITextWithRequestID(conversationID, aiAgent.ID, HandoffOffHoursMessage, requestID); err != nil {
+		return true, err
+	}
+	if err := s.ensureOffHoursFollowUpLead(conversation, aiAgent, reason); err != nil {
 		return true, err
 	}
 	return true, nil
@@ -165,6 +169,7 @@ func (s *conversationHumanDispatchService) dispatchAfterHandoffWithRequestID(con
 	if err := s.sendAITextWithRequestID(conversationID, aiAgentID, HandoffWaitingMessage, requestID); err != nil {
 		return nil, err
 	}
+	contextText := ConversationService.BuildHandoffContext(ConversationService.Get(conversationID), reason)
 
 	candidates, _, err := ConversationDispatchService.pickDispatchCandidates(activeTeamIDs, time.Now())
 	if err != nil {
@@ -184,13 +189,15 @@ func (s *conversationHumanDispatchService) dispatchAfterHandoffWithRequestID(con
 					OperatorID:     systemDispatchPrincipal().UserID,
 					Reason:         "自动分配",
 					AssignType:     events.ConversationAssignTypeAutoAssign,
+					ContextText:    contextText,
 				})
 			}
 			return &HandoffDecisionResult{
-				Decision:   HandoffDecisionAssigned,
-				TeamID:     dispatched.CurrentTeamID,
-				AssigneeID: dispatched.CurrentAssigneeID,
-				Message:    HandoffWaitingMessage,
+				Decision:    HandoffDecisionAssigned,
+				TeamID:      dispatched.CurrentTeamID,
+				AssigneeID:  dispatched.CurrentAssigneeID,
+				Message:     HandoffWaitingMessage,
+				ContextText: contextText,
 			}, nil
 		}
 	}
@@ -203,13 +210,17 @@ func (s *conversationHumanDispatchService) dispatchAfterHandoffWithRequestID(con
 	if teamPoolConversation != nil {
 		WsService.PublishConversationChanged(teamPoolConversation, enums.IMRealtimeEventConversationUpdated)
 	}
-	return &HandoffDecisionResult{Decision: HandoffDecisionTeamPool, TeamID: teamID, Message: HandoffWaitingMessage}, nil
+	return &HandoffDecisionResult{Decision: HandoffDecisionTeamPool, TeamID: teamID, Message: HandoffWaitingMessage, ContextText: contextText}, nil
 }
 
 func (s *conversationHumanDispatchService) markHandoff(conversationID int64, aiAgent models.AIAgent, reason string, requestID string) error {
 	now := time.Now()
 	trimmedReason := strings.TrimSpace(reason)
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		conversation := repositories.ConversationRepository.Get(ctx.Tx, conversationID)
+		if conversation == nil {
+			return errorsx.InvalidParamI18n("error.e0116")
+		}
 		if err := repositories.ConversationRepository.Updates(ctx.Tx, conversationID, map[string]any{
 			"handoff_at":          now,
 			"handoff_reason":      trimmedReason,
@@ -222,7 +233,10 @@ func (s *conversationHumanDispatchService) markHandoff(conversationID int64, aiA
 		}); err != nil {
 			return err
 		}
-		return ConversationEventLogService.CreateEventWithRequestID(ctx, conversationID, requestID, enums.IMEventTypeTransfer, enums.IMSenderTypeAI, aiAgent.ID, "AI转人工", trimmedReason)
+		return ConversationEventLogService.CreateEventWithRequestID(ctx, conversationID, requestID, enums.IMEventTypeTransfer, enums.IMSenderTypeAI, aiAgent.ID, "AI转人工", ConversationService.buildEventPayload(map[string]any{
+			"reason":  trimmedReason,
+			"context": ConversationService.BuildHandoffContext(conversation, trimmedReason),
+		}))
 	})
 }
 
@@ -259,6 +273,7 @@ func (s *conversationHumanDispatchService) moveToTeamPoolWithRequestID(conversat
 			"toTeamId":       teamID,
 			"reason":         strings.TrimSpace(reason),
 			"decision":       string(HandoffDecisionTeamPool),
+			"context":        ConversationService.BuildHandoffContext(current, reason),
 		})); err != nil {
 			return err
 		}
@@ -300,6 +315,91 @@ func (s *conversationHumanDispatchService) moveToGlobalPool(conversationID int64
 			"decision":   string(HandoffDecisionGlobalPool),
 		}))
 	})
+}
+
+func (s *conversationHumanDispatchService) ensureOffHoursFollowUpLead(conversation *models.Conversation, aiAgent models.AIAgent, reason string) error {
+	if conversation == nil || conversation.ID <= 0 {
+		return nil
+	}
+	now := time.Now()
+	nextFollowUpAt := nextOffHoursFollowUpTime(now)
+	trimmedReason := strings.TrimSpace(reason)
+	if trimmedReason == "" {
+		trimmedReason = "客户在非服务时间请求人工"
+	}
+	summary := limitText("非服务时间转人工："+trimmedReason, 500)
+	stage := enums.SalesLeadStageConsulting
+	if containsAnyLeadText(trimmedReason, "售后", "投诉", "退款", "退货", "换货", "质保", "异响", "故障", "不满意", "差评") {
+		stage = enums.SalesLeadStageAfterSales
+	}
+
+	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		lead := repositories.SalesLeadRepository.FindOne(ctx.Tx, sqls.NewCnd().
+			Where("conversation_id = ?", conversation.ID).
+			Where("status IN ?", []enums.SalesLeadStatus{enums.SalesLeadStatusNew, enums.SalesLeadStatusFollowing}).
+			Desc("id"))
+		if lead == nil && conversation.CustomerID > 0 {
+			lead = repositories.SalesLeadRepository.FindOne(ctx.Tx, sqls.NewCnd().
+				Where("customer_id = ?", conversation.CustomerID).
+				Where("status IN ?", []enums.SalesLeadStatus{enums.SalesLeadStatusNew, enums.SalesLeadStatusFollowing}).
+				Desc("id"))
+		}
+		if lead == nil {
+			lead = &models.SalesLead{
+				CustomerID:     conversation.CustomerID,
+				ConversationID: conversation.ID,
+				CustomerName:   strings.TrimSpace(conversation.CustomerName),
+				DemandSummary:  summary,
+				IntentLevel:    enums.SalesLeadIntentMedium,
+				BuyingStage:    stage,
+				SourceChannel:  "off_hours_handoff",
+				Status:         enums.SalesLeadStatusNew,
+				NextFollowUpAt: &nextFollowUpAt,
+				Remark:         "非服务时间请求人工，待顾问跟进",
+				AuditFields: models.AuditFields{
+					CreatedAt:      now,
+					UpdatedAt:      now,
+					CreateUserName: aiAgent.Name,
+					UpdateUserName: aiAgent.Name,
+				},
+			}
+			return repositories.SalesLeadRepository.Create(ctx.Tx, lead)
+		}
+		updates := map[string]any{
+			"conversation_id":   conversation.ID,
+			"updated_at":        now,
+			"update_user_name":  aiAgent.Name,
+			"source_channel":    "off_hours_handoff",
+			"last_message_id":   conversation.LastMessageID,
+			"next_follow_up_at": &nextFollowUpAt,
+		}
+		if strings.TrimSpace(lead.CustomerName) == "" && strings.TrimSpace(conversation.CustomerName) != "" {
+			updates["customer_name"] = strings.TrimSpace(conversation.CustomerName)
+		}
+		if strings.TrimSpace(lead.DemandSummary) == "" {
+			updates["demand_summary"] = summary
+		} else if !strings.Contains(lead.DemandSummary, trimmedReason) {
+			updates["demand_summary"] = limitText(lead.DemandSummary+"\n"+summary, 1000)
+		}
+		if lead.BuyingStage == enums.SalesLeadStageUnknown || lead.BuyingStage == enums.SalesLeadStageConsulting {
+			updates["buying_stage"] = stage
+		}
+		if lead.IntentLevel == enums.SalesLeadIntentUnknown || lead.IntentLevel == enums.SalesLeadIntentLow {
+			updates["intent_level"] = enums.SalesLeadIntentMedium
+		}
+		if lead.Status == enums.SalesLeadStatusNew || lead.Status == "" {
+			updates["status"] = enums.SalesLeadStatusNew
+		}
+		return repositories.SalesLeadRepository.Updates(ctx.Tx, lead.ID, updates)
+	})
+}
+
+func nextOffHoursFollowUpTime(now time.Time) time.Time {
+	target := time.Date(now.Year(), now.Month(), now.Day(), 9, 30, 0, 0, now.Location())
+	if now.Before(target) {
+		return target
+	}
+	return target.AddDate(0, 0, 1)
 }
 
 func (s *conversationHumanDispatchService) createEvent(conversationID int64, eventType enums.IMEventType, senderType enums.IMSenderType, senderID int64, content, payload string) error {

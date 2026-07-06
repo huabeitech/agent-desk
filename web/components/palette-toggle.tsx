@@ -69,9 +69,12 @@ export function PaletteToggle() {
   const [palette, setPalette] = useState<PaletteMode>(DEFAULT_PALETTE)
 
   useEffect(() => {
-    const storedPalette = readPalette()
-    setPalette(storedPalette)
-    applyPalette(storedPalette)
+    const paletteTask = window.setTimeout(() => {
+      const storedPalette = readPalette()
+      setPalette(storedPalette)
+      applyPalette(storedPalette)
+    }, 0)
+    return () => window.clearTimeout(paletteTask)
   }, [])
 
   function handleChange(value: string) {

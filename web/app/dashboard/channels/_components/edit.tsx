@@ -741,11 +741,9 @@ function ChannelFormBody({
 
 function WebAccessGuide({ channelId }: { channelId: string }) {
   const t = useI18n()
-  const [origin, setOrigin] = useState("")
-
-  useEffect(() => {
-    setOrigin(window.location.origin)
-  }, [])
+  const [origin] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.origin
+  )
 
   const accessUrl = useMemo(() => {
     if (!origin || !channelId) {
@@ -879,11 +877,9 @@ function WebAccessGuide({ channelId }: { channelId: string }) {
 
 function WechatMPAccessGuide({ channelId }: { channelId: string }) {
   const t = useI18n()
-  const [origin, setOrigin] = useState("")
-
-  useEffect(() => {
-    setOrigin(window.location.origin)
-  }, [])
+  const [origin] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.origin
+  )
 
   const menuUrl = useMemo(() => {
     if (!origin || !channelId) {

@@ -79,6 +79,11 @@ type UpdateKnowledgeFAQRequest struct {
 	CreateKnowledgeFAQRequest
 }
 
+type UpdateKnowledgeFAQStatusRequest struct {
+	ID     int64        `json:"id"`
+	Status enums.Status `json:"status"`
+}
+
 type BatchMoveKnowledgeFAQRequest struct {
 	KnowledgeBaseID int64   `json:"knowledgeBaseId"`
 	DirectoryID     int64   `json:"directoryId"`
@@ -134,4 +139,19 @@ type CreateKnowledgeFeedbackRequest struct {
 	FeedbackType   int    `json:"feedbackType"`
 	FeedbackReason string `json:"feedbackReason"`
 	Remark         string `json:"remark"`
+}
+
+type CreateKnowledgeFAQDraftFromRetrieveLogRequest struct {
+	RetrieveLogID int64  `json:"retrieveLogId"`
+	Answer        string `json:"answer"`
+	Remark        string `json:"remark"`
+}
+
+type BatchCreateKnowledgeFAQDraftsFromRetrieveLogsRequest struct {
+	KnowledgeBaseID          int64  `json:"knowledgeBaseId"`
+	AnswerStatuses           []int  `json:"answerStatuses"`
+	IncludeNegativeFeedbacks bool   `json:"includeNegativeFeedbacks"`
+	Limit                    int    `json:"limit"`
+	Answer                   string `json:"answer"`
+	Remark                   string `json:"remark"`
 }

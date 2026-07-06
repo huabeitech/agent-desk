@@ -17,6 +17,7 @@ type Config struct {
 	Storage         StorageConfig         `yaml:"storage"`
 	VectorDB        VectorDBConfig        `yaml:"vectorDB"`
 	MCP             MCPConfig             `yaml:"mcp"`
+	Notify          NotifyConfig          `yaml:"notify"`
 	WxWork          WxWorkConfig          `yaml:"wxWork"`
 	OIDC            OIDCConfig            `yaml:"oidc"`
 	CustomerSession CustomerSessionConfig `yaml:"customerSession"`
@@ -39,6 +40,27 @@ type WxWorkNotifyConfig struct {
 	Safe                   bool    `yaml:"safe"`
 	EnableDuplicateCheck   bool    `yaml:"enableDuplicateCheck"`
 	DuplicateCheckInterval int     `yaml:"duplicateCheckInterval"`
+}
+
+type NotifyConfig struct {
+	Webhook     WebhookNotifyConfig     `yaml:"webhook"`
+	DailyReport DailyReportNotifyConfig `yaml:"dailyReport"`
+}
+
+type WebhookNotifyConfig struct {
+	Enabled   bool              `yaml:"enabled"`
+	URL       string            `yaml:"url"`
+	Format    string            `yaml:"format"`
+	Secret    string            `yaml:"secret"`
+	TimeoutMS int               `yaml:"timeoutMs"`
+	Headers   map[string]string `yaml:"headers"`
+}
+
+type DailyReportNotifyConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	Cron           string `yaml:"cron"`
+	DateOffsetDays int    `yaml:"dateOffsetDays"`
+	AllowDuplicate bool   `yaml:"allowDuplicate"`
 }
 
 type ServerConfig struct {

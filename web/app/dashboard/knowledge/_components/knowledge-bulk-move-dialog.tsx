@@ -49,13 +49,16 @@ export function KnowledgeBulkMoveDialog({
     if (!open) {
       return;
     }
-    setTargetDirectoryId("0");
+    const resetTask = window.setTimeout(() => {
+      setTargetDirectoryId("0");
+    }, 0);
     fetchKnowledgeDirectories(knowledgeBaseId)
       .then(setDirectories)
       .catch((error) => {
         console.error(error);
         setDirectories([]);
       });
+    return () => window.clearTimeout(resetTask);
   }, [knowledgeBaseId, open]);
 
   const directoryOptions = useMemo(() => [

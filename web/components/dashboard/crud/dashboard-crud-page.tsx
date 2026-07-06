@@ -117,6 +117,11 @@ export type DashboardCrudActionState = {
   loading: boolean
 }
 
+export type DashboardCrudToolbarActionContext = {
+  reload: () => Promise<void>
+  loading: boolean
+}
+
 export type DashboardCrudPageProps<TItem, TPayload> = {
   filters: DashboardCrudFilter[]
   columns: DashboardCrudColumn<TItem>[]
@@ -155,6 +160,7 @@ export type DashboardCrudPageProps<TItem, TPayload> = {
   canDelete?: (item: TItem) => boolean
   deleteConfirm?: false | ConfirmOptions | ((item: TItem) => ConfirmOptions)
   rowActions?: DashboardCrudRowAction<TItem>[]
+  renderToolbarActions?: (context: DashboardCrudToolbarActionContext) => ReactNode
   renderRowActions?: (context: DashboardCrudRowActionContext<TItem>) => ReactNode
   sort?: {
     enabled?: boolean
@@ -207,6 +213,7 @@ export function DashboardCrudPage<TItem, TPayload>({
   canDelete,
   deleteConfirm,
   rowActions = [],
+  renderToolbarActions,
   renderRowActions,
   sort,
   pageSize = 20,
@@ -595,6 +602,10 @@ export function DashboardCrudPage<TItem, TPayload>({
                   <PlusIcon />
                   {labels.create}
                 </Button>
+                {renderToolbarActions?.({
+                  reload: loadData,
+                  loading,
+                })}
               </>
             ) : null
           }

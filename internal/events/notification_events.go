@@ -11,6 +11,12 @@ type TicketCreatedEvent struct {
 	OperatorID int64
 }
 
+type SalesLeadCreatedEvent struct {
+	LeadID         int64
+	ConversationID int64
+	Reason         string
+}
+
 type TicketAssignedEvent struct {
 	TicketID   int64
 	FromUserID int64
@@ -26,4 +32,5 @@ type ConversationAssignedEvent struct {
 	OperatorID     int64
 	Reason         string
 	AssignType     string
+	ContextText    string
 }

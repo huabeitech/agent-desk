@@ -275,7 +275,7 @@ func TestExecutorPolicyFirstWorkflowRoutesBusinessQuestionToKnowledge(t *testing
 	result, err := NewExecutor().Execute(context.Background(), Input{
 		Definition: policyFirstWorkflowDefinition(),
 		UserMessage: models.Message{
-			Content: "你们价格是多少？",
+			Content: "老人腰不好，床垫是不是越硬越好？预算一万五推荐哪种？",
 		},
 		AIAgent: models.AIAgent{
 			KnowledgeIDs:    "1",
@@ -286,6 +286,63 @@ func TestExecutorPolicyFirstWorkflowRoutesBusinessQuestionToKnowledge(t *testing
 		t.Fatalf("execute workflow: %v", err)
 	}
 	assertPath(t, result.NodePath, []string{"start_1", "understanding_1", "policy_1", "policy_route_1", "retrieve_end"})
+}
+
+func TestUnderstandConversationMessageDoesNotTreatRiskQuestionAsConfirmation(t *testing.T) {
+	got := understandConversationMessage("能不能保证治好腰疼？")
+	if got.MessageIntent != "business_question" || got.AnswerScope != "needs_knowledge" {
+		t.Fatalf("expected risk question to need knowledge, got %#v", got)
+	}
+}
+
+func TestUnderstandConversationMessageRoutesShortRetailNeedToKnowledge(t *testing.T) {
+	tests := []string{
+		"我腰疼",
+		"太软",
+		"老人起夜",
+	}
+	for _, tt := range tests {
+		t.Run(tt, func(t *testing.T) {
+			got := understandConversationMessage(tt)
+			if got.MessageIntent != "business_question" || got.AnswerScope != "needs_knowledge" {
+				t.Fatalf("expected retail need to need knowledge, got %#v", got)
+			}
+		})
+	}
+}
+
+func TestWorkflowClarificationReplyUsesRetailLanguage(t *testing.T) {
+	got := decideWorkflowReplyPolicy(models.AIAgent{}, workflowReplyPolicyInput{
+		MessageIntent: "ambiguous_question",
+		AnswerScope:   "needs_clarification",
+	})
+	if !strings.Contains(got.ReplyText, "睡眠困扰") || strings.Contains(got.ReplyText, "报错信息") {
+		t.Fatalf("expected retail clarification reply, got %q", got.ReplyText)
+	}
+}
+
+func TestUnderstandConversationMessageRoutesIdentityQuestionToDirectReply(t *testing.T) {
+	got := understandConversationMessage("你是谁")
+	if got.MessageIntent != "identity" || got.AnswerScope != "direct_reply" {
+		t.Fatalf("expected identity direct reply, got %#v", got)
+	}
+}
+
+func TestWorkflowIdentityReplyAnswersRole(t *testing.T) {
+	got := decideWorkflowReplyPolicy(models.AIAgent{Name: "慕小眠"}, workflowReplyPolicyInput{
+		MessageIntent: "identity",
+		AnswerScope:   "direct_reply",
+	})
+	if !strings.Contains(got.ReplyText, "慕小眠") || !strings.Contains(got.ReplyText, "慕斯寝具") || !strings.Contains(got.ReplyText, "睡眠顾问") {
+		t.Fatalf("expected concrete identity reply, got %q", got.ReplyText)
+	}
+}
+
+func TestUnderstandConversationMessageStillRecognizesShortConfirmation(t *testing.T) {
+	got := understandConversationMessage("好的")
+	if got.MessageIntent != "confirmation" || got.AnswerScope != "direct_reply" {
+		t.Fatalf("expected confirmation, got %#v", got)
+	}
 }
 
 func TestExecutorLLMReplyUsesAgentFallbackWhenDeclaredKnowledgeIsEmpty(t *testing.T) {
@@ -311,6 +368,41 @@ func TestExecutorLLMReplyUsesAgentFallbackWhenDeclaredKnowledgeIsEmpty(t *testin
 		t.Fatalf("expected fallback reply, got %q", result.ReplyText)
 	}
 	assertPath(t, result.NodePath, []string{"start_1", "reply_1", "send_1", "end_1"})
+}
+
+func TestExecutorAnswerabilityAllowsDigitalStoreRuntimeContext(t *testing.T) {
+	db := setupWorkflowExecutorDigitalStoreRuntimeDB(t)
+	rawConfig := `{"brandName":"慕斯寝具","industry":"家居寝具","storeName":"徐汇体验店","aiManagerName":"慕小眠","initialized":true}`
+	if err := db.Create(&models.SystemConfig{
+		ConfigKey:   "digital_store.profile",
+		ConfigValue: rawConfig,
+		GroupCode:   "digital_store",
+		Status:      enums.StatusOk,
+	}).Error; err != nil {
+		t.Fatalf("create digital store config: %v", err)
+	}
+	state := &runState{
+		vars: map[string]map[string]any{
+			"retrieve_1": {"items": []map[string]any{}},
+		},
+	}
+	node := dsl.Node{
+		ID:   "answerability_1",
+		Type: workflowregistry.NodeTypeAnswerabilityGate,
+		Inputs: map[string]dsl.VariableSelector{
+			"knowledgeItems": {NodeID: "retrieve_1", Field: "items"},
+		},
+	}
+
+	if err := NewExecutor().executeAnswerabilityGate(state, node); err != nil {
+		t.Fatalf("executeAnswerabilityGate() error = %v", err)
+	}
+	if got := state.vars["answerability_1"]["answerability"]; got != "answerable" {
+		t.Fatalf("expected answerable with digital store runtime context, got %#v", got)
+	}
+	if got := state.vars["answerability_1"]["reason"]; got != "digital store runtime context is available" {
+		t.Fatalf("unexpected reason: %#v", got)
+	}
 }
 
 func TestExecutorHumanConfirmInterruptsWithCheckpoint(t *testing.T) {
@@ -757,6 +849,26 @@ func setupWorkflowExecutorHandoffDB(t *testing.T) *gorm.DB {
 		&models.TicketTag{},
 		&models.TicketProgress{},
 	); err != nil {
+		t.Fatalf("auto migrate error = %v", err)
+	}
+	sqls.SetDB(db)
+	return db
+}
+
+func setupWorkflowExecutorDigitalStoreRuntimeDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite error = %v", err)
+	}
+	t.Cleanup(func() {
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	if err := db.AutoMigrate(&models.SystemConfig{}, &models.Product{}, &models.Promotion{}); err != nil {
 		t.Fatalf("auto migrate error = %v", err)
 	}
 	sqls.SetDB(db)

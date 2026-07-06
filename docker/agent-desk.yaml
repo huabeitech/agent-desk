@@ -66,6 +66,15 @@ mcp:
       timeoutMs: 15000
       headers: {}
 
+notify:
+  webhook:
+    enabled: false
+    url: ""
+    format: generic
+    secret: ""
+    timeoutMs: 5000
+    headers: {}
+
 wxWork:
   enabled: false
   corpId: ""
