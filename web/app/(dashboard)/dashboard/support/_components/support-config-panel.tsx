@@ -19,7 +19,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { BotIcon, ExternalLinkIcon, GripVerticalIcon, PlusIcon, RefreshCwIcon, SaveIcon, Trash2Icon } from "lucide-react"
+import { ExternalLinkIcon, GripVerticalIcon, PlusIcon, RefreshCwIcon, SaveIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardPage, DashboardTableShell, DashboardTableStateRow, DashboardToolbar } from "@/components/dashboard-page"
@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useI18n } from "@/i18n/provider"
 import {
   fetchChannels,
@@ -131,7 +132,6 @@ export function SupportConfigPanel() {
     label: channel.name || channel.channelId,
     subtitle: channel.aiAgentName ? t("supportConfig.aiChannelAgent", { name: channel.aiAgentName }) : channel.channelId,
   })), [channels, t])
-  const selectedChannel = channels.find((channel) => channel.channelId === aiCustomerService.channelId)
 
   const loadConfig = useCallback(async () => {
     try {
@@ -258,120 +258,108 @@ export function SupportConfigPanel() {
       >
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight">{t("supportConfig.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t("supportConfig.description")}</p>
         </div>
       </DashboardToolbar>
 
-      <section className="space-y-3">
-        <div className="grid gap-4 rounded-md border bg-card p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex min-w-0 gap-3">
-              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <BotIcon className="size-4" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-sm font-medium">{t("supportConfig.aiCustomerServiceTitle")}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{t("supportConfig.aiCustomerServiceDescription")}</p>
+      {fieldErrors.length > 0 ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <div className="font-medium">{t("supportConfig.validationFailed")}</div>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {fieldErrors.map((error) => (
+              <li key={`${error.path}-${error.code}`}>{error.path ? `${error.path}: ${error.message}` : error.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <Tabs defaultValue="navigation" className="min-h-0">
+        <TabsList variant="line" className="w-fit">
+          <TabsTrigger value="navigation">{t("supportConfig.navigationTitle")}</TabsTrigger>
+          <TabsTrigger value="aiCustomerService">{t("supportConfig.aiCustomerServiceTitle")}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="navigation" className="m-0 space-y-3">
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={handleAdd} disabled={loading || saving}>
+              <PlusIcon />
+              {t("supportConfig.addNavigation")}
+            </Button>
+          </div>
+
+          <DashboardTableShell>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">{t("supportConfig.sort")}</TableHead>
+                    <TableHead className="min-w-44">{t("supportConfig.menuTitle")}</TableHead>
+                    <TableHead className="min-w-64">{t("supportConfig.menuURL")}</TableHead>
+                    <TableHead className="w-40">{t("supportConfig.target")}</TableHead>
+                    <TableHead className="w-28">{t("supportConfig.visible")}</TableHead>
+                    <TableHead className="w-20 text-right">{t("supportConfig.actions")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <DashboardTableStateRow colSpan={6} loading loadingText={t("supportConfig.loading")} />
+                  ) : items.length === 0 ? (
+                    <DashboardTableStateRow colSpan={6} emptyText={t("supportConfig.emptyNavigation")} />
+                  ) : (
+                    <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+                      {items.map((item) => (
+                        <NavigationMenuRow
+                          key={item.id}
+                          item={item}
+                          disabled={saving}
+                          canDelete={canDelete}
+                          onChange={handleChange}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </SortableContext>
+                  )}
+                </TableBody>
+              </Table>
+            </DndContext>
+          </DashboardTableShell>
+        </TabsContent>
+
+        <TabsContent value="aiCustomerService" className="m-0">
+          <div className="grid max-w-2xl gap-5 rounded-md border bg-card p-4">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="support-ai-customer-service-enabled" className="text-sm font-medium">
+                {t("supportConfig.aiCustomerServiceStatus")}
+              </Label>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {aiCustomerService.enabled ? t("supportConfig.enabled") : t("supportConfig.disabled")}
+                </span>
+                <Switch
+                  id="support-ai-customer-service-enabled"
+                  checked={aiCustomerService.enabled}
+                  onCheckedChange={(enabled) => setAICustomerService((current) => ({ ...current, enabled }))}
+                  disabled={loading || saving}
+                  aria-label={t("supportConfig.toggleAIService")}
+                />
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Label htmlFor="support-ai-customer-service-enabled" className="text-sm text-muted-foreground">
-                {aiCustomerService.enabled ? t("supportConfig.enabled") : t("supportConfig.disabled")}
-              </Label>
-              <Switch
-                id="support-ai-customer-service-enabled"
-                checked={aiCustomerService.enabled}
-                onCheckedChange={(enabled) => setAICustomerService((current) => ({ ...current, enabled }))}
-                disabled={loading || saving}
-                aria-label={t("supportConfig.toggleAIService")}
+
+            <div className="grid gap-2">
+              <Label>{t("supportConfig.aiCustomerServiceChannel")}</Label>
+              <OptionCombobox
+                value={aiCustomerService.channelId}
+                onChange={(channelId) => setAICustomerService((current) => ({ ...current, channelId }))}
+                options={channelOptions}
+                placeholder={channelsLoading ? t("supportConfig.loadingChannels") : t("supportConfig.selectAIChannel")}
+                searchPlaceholder={t("supportConfig.searchAIChannel")}
+                emptyText={t("supportConfig.emptyAIChannel")}
+                disabled={loading || saving || channelsLoading}
+                triggerClassName="rounded-md"
               />
             </div>
           </div>
-
-          <div className="grid gap-2 md:max-w-xl">
-            <Label>{t("supportConfig.aiCustomerServiceChannel")}</Label>
-            <OptionCombobox
-              value={aiCustomerService.channelId}
-              onChange={(channelId) => setAICustomerService((current) => ({ ...current, channelId }))}
-              options={channelOptions}
-              placeholder={channelsLoading ? t("supportConfig.loadingChannels") : t("supportConfig.selectAIChannel")}
-              searchPlaceholder={t("supportConfig.searchAIChannel")}
-              emptyText={t("supportConfig.emptyAIChannel")}
-              disabled={loading || saving || channelsLoading}
-              triggerClassName="rounded-md"
-            />
-            {selectedChannel ? (
-              <p className="text-xs text-muted-foreground">
-                {t("supportConfig.aiCustomerServiceChannelSummary", {
-                  agent: selectedChannel.aiAgentName || "-",
-                  rollout: selectedChannel.aiAgentRolloutPercent,
-                })}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">{t("supportConfig.aiCustomerServiceChannelHint")}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-medium">{t("supportConfig.navigationTitle")}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{t("supportConfig.navigationDescription")}</p>
-          </div>
-          <Button type="button" variant="outline" onClick={handleAdd} disabled={loading || saving}>
-            <PlusIcon />
-            {t("supportConfig.addNavigation")}
-          </Button>
-        </div>
-
-        {fieldErrors.length > 0 ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            <div className="font-medium">{t("supportConfig.validationFailed")}</div>
-            <ul className="mt-1 list-disc space-y-1 pl-5">
-              {fieldErrors.map((error) => (
-                <li key={`${error.path}-${error.code}`}>{error.path ? `${error.path}: ${error.message}` : error.message}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        <DashboardTableShell>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">{t("supportConfig.sort")}</TableHead>
-                  <TableHead className="min-w-44">{t("supportConfig.menuTitle")}</TableHead>
-                  <TableHead className="min-w-64">{t("supportConfig.menuURL")}</TableHead>
-                  <TableHead className="w-40">{t("supportConfig.target")}</TableHead>
-                  <TableHead className="w-28">{t("supportConfig.visible")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("supportConfig.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <DashboardTableStateRow colSpan={6} loading loadingText={t("supportConfig.loading")} />
-                ) : items.length === 0 ? (
-                  <DashboardTableStateRow colSpan={6} emptyText={t("supportConfig.emptyNavigation")} />
-                ) : (
-                  <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-                    {items.map((item) => (
-                      <NavigationMenuRow
-                        key={item.id}
-                        item={item}
-                        disabled={saving}
-                        canDelete={canDelete}
-                        onChange={handleChange}
-                        onDelete={handleDelete}
-                      />
-                    ))}
-                  </SortableContext>
-                )}
-              </TableBody>
-            </Table>
-          </DndContext>
-        </DashboardTableShell>
-      </section>
+        </TabsContent>
+      </Tabs>
     </DashboardPage>
   )
 }
