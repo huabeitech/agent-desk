@@ -19,10 +19,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ExternalLinkIcon, GripVerticalIcon, PlusIcon, RefreshCwIcon, SaveIcon, Trash2Icon } from "lucide-react"
+import { BotIcon, ExternalLinkIcon, GripVerticalIcon, PlusIcon, RefreshCwIcon, SaveIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { DashboardPage, DashboardTableShell, DashboardTableStateRow, DashboardToolbar } from "@/components/dashboard-page"
+import { OptionCombobox } from "@/components/option-combobox"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,8 +32,10 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useI18n } from "@/i18n/provider"
 import {
+  fetchChannels,
   fetchSupportConfigAdmin,
   saveSupportConfigAdmin,
+  type AdminChannel,
   type SupportNavigationMenuItem,
 } from "@/lib/api/admin"
 import { isApiRequestError } from "@/lib/api/client"
@@ -50,6 +53,16 @@ type NavigationMenuRowProps = {
   canDelete: boolean
   onChange: (id: string, values: Partial<SupportNavigationMenuItem>) => void
   onDelete: (id: string) => void
+}
+
+type AICustomerServiceConfig = {
+  enabled: boolean
+  channelId: string
+}
+
+const DEFAULT_AI_CUSTOMER_SERVICE_CONFIG: AICustomerServiceConfig = {
+  enabled: false,
+  channelId: "",
 }
 
 const newMenuItem = (): SupportNavigationMenuItem => ({
@@ -77,12 +90,32 @@ function serializeRows(rows: SupportNavigationMenuItem[]) {
   )
 }
 
+function serializeConfig(rows: SupportNavigationMenuItem[], aiCustomerService: AICustomerServiceConfig) {
+  return JSON.stringify({
+    navigationMenu: JSON.parse(serializeRows(rows)),
+    aiCustomerService: {
+      enabled: aiCustomerService.enabled,
+      channelId: aiCustomerService.channelId.trim(),
+    },
+  })
+}
+
+function normalizeAICustomerServiceConfig(config?: Partial<AICustomerServiceConfig> | null): AICustomerServiceConfig {
+  return {
+    enabled: Boolean(config?.enabled),
+    channelId: config?.channelId?.trim() ?? "",
+  }
+}
+
 export function SupportConfigPanel() {
   const t = useI18n()
   const [items, setItems] = useState<SupportNavigationMenuItem[]>([])
+  const [aiCustomerService, setAICustomerService] = useState<AICustomerServiceConfig>(DEFAULT_AI_CUSTOMER_SERVICE_CONFIG)
+  const [channels, setChannels] = useState<AdminChannel[]>([])
   const [savedSnapshot, setSavedSnapshot] = useState("")
   const [fieldErrors, setFieldErrors] = useState<ConfigFieldError[]>([])
   const [loading, setLoading] = useState(true)
+  const [channelsLoading, setChannelsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const sensors = useSensors(
@@ -91,16 +124,24 @@ export function SupportConfigPanel() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  const dirty = useMemo(() => serializeRows(items) !== savedSnapshot, [items, savedSnapshot])
+  const dirty = useMemo(() => serializeConfig(items, aiCustomerService) !== savedSnapshot, [items, aiCustomerService, savedSnapshot])
   const canDelete = items.length > 1
+  const channelOptions = useMemo(() => channels.map((channel) => ({
+    value: channel.channelId,
+    label: channel.name || channel.channelId,
+    subtitle: channel.aiAgentName ? t("supportConfig.aiChannelAgent", { name: channel.aiAgentName }) : channel.channelId,
+  })), [channels, t])
+  const selectedChannel = channels.find((channel) => channel.channelId === aiCustomerService.channelId)
 
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
       const config = await fetchSupportConfigAdmin()
       const nextItems = normalizeRows(config.navigationMenu)
+      const nextAIConfig = normalizeAICustomerServiceConfig(config.aiCustomerService)
       setItems(nextItems)
-      setSavedSnapshot(serializeRows(nextItems))
+      setAICustomerService(nextAIConfig)
+      setSavedSnapshot(serializeConfig(nextItems, nextAIConfig))
       setFieldErrors([])
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("supportConfig.loadFailed"))
@@ -109,9 +150,25 @@ export function SupportConfigPanel() {
     }
   }, [t])
 
+  const loadChannels = useCallback(async () => {
+    try {
+      setChannelsLoading(true)
+      const page = await fetchChannels({ channelType: "web", status: 0, limit: 100 })
+      setChannels(page.results.filter((channel) => channel.channelType === "web" && channel.status === 0))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("supportConfig.loadChannelsFailed"))
+    } finally {
+      setChannelsLoading(false)
+    }
+  }, [t])
+
   useEffect(() => {
     void loadConfig()
   }, [loadConfig])
+
+  useEffect(() => {
+    void loadChannels()
+  }, [loadChannels])
 
   useEffect(() => {
     if (!dirty) {
@@ -162,10 +219,15 @@ export function SupportConfigPanel() {
   async function handleSave() {
     try {
       setSaving(true)
-      const config = await saveSupportConfigAdmin({ navigationMenu: items })
+      const config = await saveSupportConfigAdmin({
+        navigationMenu: items,
+        aiCustomerService,
+      })
       const saved = normalizeRows(config.navigationMenu)
+      const savedAIConfig = normalizeAICustomerServiceConfig(config.aiCustomerService)
       setItems(saved)
-      setSavedSnapshot(serializeRows(saved))
+      setAICustomerService(savedAIConfig)
+      setSavedSnapshot(serializeConfig(saved, savedAIConfig))
       setFieldErrors([])
       toast.success(t("supportConfig.saved"))
     } catch (error) {
@@ -201,6 +263,56 @@ export function SupportConfigPanel() {
       </DashboardToolbar>
 
       <section className="space-y-3">
+        <div className="grid gap-4 rounded-md border bg-card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 gap-3">
+              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <BotIcon className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-medium">{t("supportConfig.aiCustomerServiceTitle")}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{t("supportConfig.aiCustomerServiceDescription")}</p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Label htmlFor="support-ai-customer-service-enabled" className="text-sm text-muted-foreground">
+                {aiCustomerService.enabled ? t("supportConfig.enabled") : t("supportConfig.disabled")}
+              </Label>
+              <Switch
+                id="support-ai-customer-service-enabled"
+                checked={aiCustomerService.enabled}
+                onCheckedChange={(enabled) => setAICustomerService((current) => ({ ...current, enabled }))}
+                disabled={loading || saving}
+                aria-label={t("supportConfig.toggleAIService")}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-2 md:max-w-xl">
+            <Label>{t("supportConfig.aiCustomerServiceChannel")}</Label>
+            <OptionCombobox
+              value={aiCustomerService.channelId}
+              onChange={(channelId) => setAICustomerService((current) => ({ ...current, channelId }))}
+              options={channelOptions}
+              placeholder={channelsLoading ? t("supportConfig.loadingChannels") : t("supportConfig.selectAIChannel")}
+              searchPlaceholder={t("supportConfig.searchAIChannel")}
+              emptyText={t("supportConfig.emptyAIChannel")}
+              disabled={loading || saving || channelsLoading}
+              triggerClassName="rounded-md"
+            />
+            {selectedChannel ? (
+              <p className="text-xs text-muted-foreground">
+                {t("supportConfig.aiCustomerServiceChannelSummary", {
+                  agent: selectedChannel.aiAgentName || "-",
+                  rollout: selectedChannel.aiAgentRolloutPercent,
+                })}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t("supportConfig.aiCustomerServiceChannelHint")}</p>
+            )}
+          </div>
+        </div>
+
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-sm font-medium">{t("supportConfig.navigationTitle")}</h2>

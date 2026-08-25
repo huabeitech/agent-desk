@@ -27,11 +27,18 @@ type SupportNavigationMenuItemResponse struct {
 }
 
 type PublicSupportConfigResponse struct {
-	NavigationMenu []SupportNavigationMenuItemResponse `json:"navigationMenu"`
+	NavigationMenu    []SupportNavigationMenuItemResponse    `json:"navigationMenu"`
+	AICustomerService SupportAICustomerServiceConfigResponse `json:"aiCustomerService"`
 }
 
 type DashboardSupportConfigResponse struct {
-	NavigationMenu []SupportNavigationMenuItemResponse `json:"navigationMenu"`
+	NavigationMenu    []SupportNavigationMenuItemResponse    `json:"navigationMenu"`
+	AICustomerService SupportAICustomerServiceConfigResponse `json:"aiCustomerService"`
+}
+
+type SupportAICustomerServiceConfigResponse struct {
+	Enabled   bool   `json:"enabled"`
+	ChannelID string `json:"channelId"`
 }
 
 type DocPageResponse struct {

@@ -12,6 +12,10 @@ export type SupportNavigationMenuItem = {
 
 export type PublicSupportConfig = {
   navigationMenu: SupportNavigationMenuItem[]
+  aiCustomerService: {
+    enabled: boolean
+    channelId: string
+  }
 }
 
 export function fetchSupportConfig() {

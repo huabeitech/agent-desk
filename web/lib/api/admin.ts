@@ -2386,6 +2386,10 @@ export type SupportNavigationMenuItem = {
 
 export type DashboardSupportConfig = {
   navigationMenu: SupportNavigationMenuItem[]
+  aiCustomerService: {
+    enabled: boolean
+    channelId: string
+  }
 }
 
 export function fetchSupportConfigAdmin() {
@@ -2405,6 +2409,12 @@ export function saveSupportConfigAdmin(payload: Partial<DashboardSupportConfig>)
         visible,
         children,
       })),
+      aiCustomerService: payload.aiCustomerService
+        ? {
+            enabled: payload.aiCustomerService.enabled,
+            channelId: payload.aiCustomerService.channelId,
+          }
+        : undefined,
     }),
   })
 }

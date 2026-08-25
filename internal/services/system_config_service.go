@@ -29,8 +29,9 @@ type systemConfigService struct {
 }
 
 const (
-	systemConfigGroupSupportCenter = "support"
-	systemConfigKeySupportNavMenu  = "navigationMenu"
+	systemConfigGroupSupportCenter          = "support"
+	systemConfigKeySupportNavMenu           = "navigationMenu"
+	systemConfigKeySupportAICustomerService = "aiCustomerService"
 )
 
 type configValidator interface {
@@ -89,6 +90,14 @@ var systemConfigDefinitions = map[string]map[string]systemConfigDefinition{
 			DefaultValue:   defaultSupportNavigationMenu(),
 			Validator:      supportNavigationMenuValidator{},
 		},
+		systemConfigKeySupportAICustomerService: {
+			GroupCode:      systemConfigGroupSupportCenter,
+			Key:            systemConfigKeySupportAICustomerService,
+			TitleKey:       "systemConfig.support.aiCustomerService.title",
+			DescriptionKey: "systemConfig.support.aiCustomerService.description",
+			DefaultValue:   defaultSupportAICustomerServiceConfig(),
+			Validator:      supportAICustomerServiceConfigValidator{},
+		},
 	},
 }
 
@@ -118,13 +127,15 @@ func (s *systemConfigService) FindPageByCnd(cnd *sqls.Cnd) (list []models.System
 
 func (s *systemConfigService) GetPublicSupportConfig() response.PublicSupportConfigResponse {
 	return response.PublicSupportConfigResponse{
-		NavigationMenu: s.enabledSupportNavigationMenu(),
+		NavigationMenu:    s.enabledSupportNavigationMenu(),
+		AICustomerService: s.publicSupportAICustomerServiceConfig(),
 	}
 }
 
 func (s *systemConfigService) GetDashboardSupportConfig() response.DashboardSupportConfigResponse {
 	return response.DashboardSupportConfigResponse{
-		NavigationMenu: s.supportNavigationMenu(),
+		NavigationMenu:    s.supportNavigationMenu(),
+		AICustomerService: s.supportAICustomerServiceConfig(),
 	}
 }
 
@@ -245,6 +256,35 @@ func (s *systemConfigService) supportNavigationMenu() []response.SupportNavigati
 		return defaultSupportNavigationMenu()
 	}
 	return sortSupportNavigationMenu(list)
+}
+
+func (s *systemConfigService) publicSupportAICustomerServiceConfig() response.SupportAICustomerServiceConfigResponse {
+	cfg := s.supportAICustomerServiceConfig()
+	if !cfg.Enabled {
+		return response.SupportAICustomerServiceConfigResponse{}
+	}
+	channel := repositories.ChannelRepository.GetByChannelID(sqls.DB(), cfg.ChannelID)
+	if channel == nil || channel.Status != enums.StatusOk || channel.ChannelType != enums.ChannelTypeWeb {
+		return response.SupportAICustomerServiceConfigResponse{}
+	}
+	aiAgent := repositories.AIAgentRepository.Get(sqls.DB(), channel.AIAgentID)
+	if aiAgent == nil || aiAgent.Status != enums.StatusOk || aiAgent.PublishedRevisionID <= 0 {
+		return response.SupportAICustomerServiceConfigResponse{}
+	}
+	return cfg
+}
+
+func (s *systemConfigService) supportAICustomerServiceConfig() response.SupportAICustomerServiceConfigResponse {
+	item := repositories.SystemConfigRepository.FindByGroupAndKey(sqls.DB(), systemConfigGroupSupportCenter, systemConfigKeySupportAICustomerService)
+	if item == nil || strings.TrimSpace(item.ConfigValue) == "" {
+		return defaultSupportAICustomerServiceConfig()
+	}
+	var cfg response.SupportAICustomerServiceConfigResponse
+	if err := json.Unmarshal([]byte(item.ConfigValue), &cfg); err != nil {
+		return defaultSupportAICustomerServiceConfig()
+	}
+	cfg.ChannelID = strings.TrimSpace(cfg.ChannelID)
+	return cfg
 }
 
 func sortSupportNavigationMenu(items []response.SupportNavigationMenuItemResponse) []response.SupportNavigationMenuItemResponse {

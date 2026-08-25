@@ -1,5 +1,6 @@
 import { type ReactNode } from "react"
 
+import { SupportAIChatWidget } from "@/app/(support)/support/_components/support-ai-chat-widget"
 import { SupportHeader, type SupportHeaderSection } from "@/app/(support)/support/_components/support-header"
 import { cn } from "@/lib/utils"
 
@@ -9,6 +10,7 @@ export function SupportPageShell({ children, section = "home" }: { children: Rea
     <div className="min-h-svh overflow-x-clip bg-[#F4F6FF] text-foreground dark:bg-background">
       <SupportHeader section={section} />
       {children}
+      <SupportAIChatWidget />
     </div>
   )
 }
