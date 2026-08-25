@@ -53,6 +53,7 @@ func registerApiMessageRoutes(group *gin.RouterGroup) {
 
 func registerApiSupportRoutes(group *gin.RouterGroup) {
 	group.GET("/config", api.SupportConfigGetConfig)
+	group.GET("/ai-customer-service/user-token", api.SupportConfigGetAICustomerServiceUserToken)
 	group.POST("/auth/register", api.SupportAuthPostRegister)
 	group.GET("/me", api.SupportGetMe)
 	group.Any("/doc-page/list", api.DocPageAnyList)

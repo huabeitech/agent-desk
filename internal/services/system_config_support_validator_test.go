@@ -3,11 +3,16 @@ package services
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/config"
 	"agent-desk/internal/pkg/dto/request"
 	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/pkg/i18nx"
+	"agent-desk/internal/pkg/openidentity"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestSystemConfigValidationErrorLocalizesFieldErrors(t *testing.T) {
@@ -100,5 +105,47 @@ func TestSupportAICustomerServiceConfigAllowsDisabledConfigWithStaleChannel(t *t
 	}
 	if len(fieldErrors) != 0 {
 		t.Fatalf("disabled config should not validate stale channel: %#v", fieldErrors)
+	}
+}
+
+func TestSignSupportUserTokenUsesInternalUserSource(t *testing.T) {
+	db := setupChannelServiceTestDB(t)
+	config.SetCurrent(&config.Config{
+		CustomerSession: config.CustomerSessionConfig{Secret: "customer-session-secret"},
+	})
+	agent := createChannelServiceTestAgent(t, db, 1001)
+	channel, err := ChannelService.CreateChannel(request.CreateChannelRequest{
+		ChannelType: enums.ChannelTypeWeb,
+		AIAgentID:   agent.ID,
+		Name:        "支持中心 AI 客服",
+		Status:      int(enums.StatusOk),
+	}, channelServiceTestOperator())
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	user := &models.User{ID: 88, Username: "support-user", Nickname: "支持中心用户", Status: enums.StatusOk}
+
+	result, err := CustomerSessionService.SignSupportUserToken(channel, user)
+	if err != nil {
+		t.Fatalf("SignSupportUserToken() error = %v", err)
+	}
+	claims := jwt.MapClaims{}
+	token, err := jwt.ParseWithClaims(result.UserToken, claims, func(token *jwt.Token) (any, error) {
+		return []byte(config.Current().CustomerSession.Secret), nil
+	}, jwt.WithExpirationRequired())
+	if err != nil || token == nil || !token.Valid {
+		t.Fatalf("parse signed token: token=%#v err=%v", token, err)
+	}
+	if claims["typ"] != openidentity.SupportUserTokenType {
+		t.Fatalf("typ claim = %#v", claims["typ"])
+	}
+	if claims["userId"] != "88" {
+		t.Fatalf("userId claim = %#v", claims["userId"])
+	}
+	if claims["name"] != "支持中心用户" {
+		t.Fatalf("name claim = %#v", claims["name"])
+	}
+	if expiresAt, err := time.Parse(time.DateTime, result.ExpiresAt); err != nil || time.Until(expiresAt) <= 0 {
+		t.Fatalf("invalid expiresAt %q: %v", result.ExpiresAt, err)
 	}
 }

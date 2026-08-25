@@ -18,6 +18,15 @@ export type PublicSupportConfig = {
   }
 }
 
+export type SupportAICustomerServiceUserToken = {
+  userToken: string
+  expiresAt: string
+}
+
 export function fetchSupportConfig() {
   return request<PublicSupportConfig>("/api/support/config", { skipAuth: true })
+}
+
+export function fetchSupportAICustomerServiceUserToken() {
+  return request<SupportAICustomerServiceUserToken>("/api/support/ai-customer-service/user-token")
 }

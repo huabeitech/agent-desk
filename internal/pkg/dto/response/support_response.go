@@ -41,6 +41,11 @@ type SupportAICustomerServiceConfigResponse struct {
 	ChannelID string `json:"channelId"`
 }
 
+type SupportAICustomerServiceUserTokenResponse struct {
+	UserToken string `json:"userToken"`
+	ExpiresAt string `json:"expiresAt"`
+}
+
 type DocPageResponse struct {
 	ID                        int64               `json:"id"`
 	ParentID                  int64               `json:"parentId"`

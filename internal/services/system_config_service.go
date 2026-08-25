@@ -139,6 +139,14 @@ func (s *systemConfigService) GetDashboardSupportConfig() response.DashboardSupp
 	}
 }
 
+func (s *systemConfigService) GetPublicSupportAICustomerServiceChannel() *models.Channel {
+	cfg := s.publicSupportAICustomerServiceConfig()
+	if !cfg.Enabled || strings.TrimSpace(cfg.ChannelID) == "" {
+		return nil
+	}
+	return repositories.ChannelRepository.GetByChannelID(sqls.DB(), cfg.ChannelID)
+}
+
 func (s *systemConfigService) SaveSupportConfig(payload map[string]json.RawMessage, operator *dto.AuthPrincipal) (response.DashboardSupportConfigResponse, error) {
 	if err := s.SaveGroupConfig(systemConfigGroupSupportCenter, payload, operator); err != nil {
 		return response.DashboardSupportConfigResponse{}, err

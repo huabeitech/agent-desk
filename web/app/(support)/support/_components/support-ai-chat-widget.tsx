@@ -2,7 +2,11 @@
 
 import { useEffect } from "react"
 
-import { fetchSupportConfig } from "@/lib/api/support-config"
+import { useSupportAuth } from "@/app/(support)/support/_components/support-auth-provider"
+import {
+  fetchSupportAICustomerServiceUserToken,
+  fetchSupportConfig,
+} from "@/lib/api/support-config"
 import type { AgentDeskConfig } from "@/lib/sdk/config-types"
 
 const WIDGET_SCRIPT_SELECTOR = '[data-agent-desk-widget="support-platform-script"]'
@@ -28,7 +32,13 @@ function mountSupportWidget(config: AgentDeskConfig) {
 }
 
 export function SupportAIChatWidget() {
+  const { ready, session } = useSupportAuth()
+
   useEffect(() => {
+    if (!ready) {
+      return
+    }
+
     let cancelled = false
 
     async function loadConfig() {
@@ -42,11 +52,18 @@ export function SupportAIChatWidget() {
           removeSupportWidget()
           return
         }
-        mountSupportWidget({
+        const widgetConfig: AgentDeskConfig = {
           channelId: aiCustomerService.channelId,
           baseUrl: window.location.origin,
           widgetBaseUrl: window.location.origin,
-        })
+        }
+        if (session) {
+          widgetConfig.getUserToken = async () => {
+            const token = await fetchSupportAICustomerServiceUserToken()
+            return token.userToken
+          }
+        }
+        mountSupportWidget(widgetConfig)
       } catch {
         if (!cancelled) {
           removeSupportWidget()
@@ -60,7 +77,7 @@ export function SupportAIChatWidget() {
       cancelled = true
       removeSupportWidget()
     }
-  }, [])
+  }, [ready, session])
 
   return null
 }
