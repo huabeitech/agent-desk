@@ -2761,21 +2761,15 @@
       "title": "Docs, community answers, and live support in one place.",
       "description": "Capture recurring questions like a community and organize guidance like a docs site. Search first, then contact support when needed.",
       "searchPlaceholder": "Search help pages or questions",
-      "helpTitle": "Help Center",
-      "helpDescription": "Official guides, deployment notes, and troubleshooting.",
       "questionsTitle": "FAQ Community",
       "questionsDescription": "Browse questions, then log in to ask or answer.",
-      "chatTitle": "Live Support",
-      "chatDescription": "Open a support conversation when self-service is not enough.",
       "quickPanelTitle": "Quick Links",
       "quickPanelDescription": "Continue by task",
       "unsolvedQuestions": "View unsolved questions",
       "browseDocs": "Browse help docs",
       "askQuestion": "Ask a question",
       "recommendedPages": "Recommended Pages",
-      "hotQuestions": "Popular Questions",
-      "postsTitle": "Community Discussions",
-      "postsDescription": "Browse posts, then log in to publish and comment."
+      "hotQuestions": "Popular Questions"
     },
     "help": {
       "title": "Help Center",

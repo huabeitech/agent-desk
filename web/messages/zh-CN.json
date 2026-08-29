@@ -2760,21 +2760,15 @@
       "title": "文档、社区问答和在线咨询集中在这里。",
       "description": "像社区一样沉淀问题，像文档站一样组织知识。先自助检索，必要时再进入在线咨询。",
       "searchPlaceholder": "搜索帮助页面或问题",
-      "helpTitle": "帮助中心",
-      "helpDescription": "官方指南、部署文档和故障排查。",
       "questionsTitle": "FAQ 社区",
       "questionsDescription": "浏览问题，登录后提问和回答。",
-      "chatTitle": "在线咨询",
-      "chatDescription": "仍然无法解决时进入客服会话。",
       "quickPanelTitle": "快速入口",
       "quickPanelDescription": "按当前任务继续",
       "unsolvedQuestions": "查看未解决问题",
       "browseDocs": "浏览帮助文档",
       "askQuestion": "提出一个问题",
       "recommendedPages": "推荐页面",
-      "hotQuestions": "热门问题",
-      "postsTitle": "社区讨论",
-      "postsDescription": "浏览帖子，登录后发帖和评论。"
+      "hotQuestions": "热门问题"
     },
     "help": {
       "title": "帮助中心",
