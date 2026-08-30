@@ -61,7 +61,7 @@ func doBuildAgentProfileResponse(item *models.AgentProfile, user *models.User, t
 		TeamID:                item.TeamID,
 		AgentCode:             item.AgentCode,
 		DisplayName:           item.DisplayName,
-		Avatar:                item.Avatar,
+		Avatar:                utils.BuildAvatarURL(item.Avatar),
 		ServiceStatus:         item.ServiceStatus,
 		MaxConcurrentCount:    item.MaxConcurrentCount,
 		PriorityLevel:         item.PriorityLevel,

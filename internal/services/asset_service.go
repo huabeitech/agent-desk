@@ -136,6 +136,15 @@ func (s *assetService) Upload(reader io.Reader, info storage.UploadInfo) (*model
 
 func (s *assetService) GetSignedURL(id int64) (string, error) {
 	item := s.Get(id)
+	return s.getSignedURL(item)
+}
+
+func (s *assetService) GetSignedURLByAssetID(assetID string) (string, error) {
+	item := s.GetByAssetID(assetID)
+	return s.getSignedURL(item)
+}
+
+func (s *assetService) getSignedURL(item *models.Asset) (string, error) {
 	if item == nil {
 		return "", errorsx.InvalidParamI18n("error.e0214")
 	}

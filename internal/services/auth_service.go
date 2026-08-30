@@ -208,7 +208,7 @@ func (s *authService) CurrentProfile(ctx *gin.Context) (*response.LoginResponse,
 			ID:       user.ID,
 			Username: user.Username,
 			Nickname: user.Nickname,
-			Avatar:   user.Avatar,
+			Avatar:   utils.BuildAvatarURL(user.Avatar),
 			Email:    derefString(user.Email),
 			UserType: user.UserType,
 			Status:   user.Status,
@@ -236,7 +236,7 @@ func (s *authService) UpdateProfile(ctx *gin.Context, req request.UpdateProfileR
 	if len([]rune(nickname)) > 100 {
 		return nil, errorsx.InvalidParamI18n("error.profile.nicknameTooLong")
 	}
-	avatar := strings.TrimSpace(req.Avatar)
+	avatar := utils.NormalizeAvatarValue(req.Avatar)
 	if len(avatar) > 255 {
 		return nil, errorsx.InvalidParamI18n("error.profile.avatarTooLong")
 	}
@@ -311,7 +311,7 @@ func (s *authService) issueTokens(ctx *sqls.TxContext, user *models.User, client
 			ID:       user.ID,
 			Username: user.Username,
 			Nickname: user.Nickname,
-			Avatar:   user.Avatar,
+			Avatar:   utils.BuildAvatarURL(user.Avatar),
 			Email:    derefString(user.Email),
 			UserType: user.UserType,
 			Status:   user.Status,

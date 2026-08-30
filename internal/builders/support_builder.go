@@ -104,7 +104,7 @@ func BuildSimpleUserInfo(item *models.User) response.SimpleUserInfo {
 		Username:    item.Username,
 		Nickname:    item.Nickname,
 		DisplayName: displayName,
-		Avatar:      item.Avatar,
+		Avatar:      utils.BuildAvatarURL(item.Avatar),
 		UserType:    item.UserType,
 	}
 }

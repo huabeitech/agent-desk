@@ -143,6 +143,7 @@ func addRouter(app *gin.Engine) {
 	apiGroup := app.Group("/api")
 	apiGroup.GET("/health", api.Health)
 	apiGroup.GET("/config", api.PublicConfig)
+	apiGroup.GET("/asset/:assetId", api.AssetGetByAssetID)
 	registerApiAuthRoutes(apiGroup.Group("/auth"))
 	registerApiChannelRoutes(apiGroup.Group("/channel"))
 	registerApiCustomerRoutes(apiGroup.Group("/customer"))

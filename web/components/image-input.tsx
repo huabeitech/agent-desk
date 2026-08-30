@@ -18,7 +18,7 @@ export type ImageInputProps = {
   prefix?: string
   placeholder?: string
   className?: string
-  upload?: (file: File, prefix?: string) => Promise<{ url: string }>
+  upload?: (file: File, prefix?: string) => Promise<{ assetId?: string; url: string }>
 }
 
 export function ImageInput({
@@ -69,7 +69,7 @@ export function ImageInput({
     setUploading(true)
     try {
       const result = await upload(file, prefix)
-      onChange?.(result.url)
+      onChange?.(result.assetId || result.url)
       toast.success(t("upload.imageUploaded"))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("upload.imageUploadFailed"))
@@ -115,7 +115,7 @@ export function ImageInput({
         {value ? (
           <>
             <Image
-              src={value}
+              src={resolveImagePreviewURL(value)}
               alt={t("upload.uploadedImage")}
               fill
               sizes="96px"
@@ -150,4 +150,11 @@ export function ImageInput({
       )}
     </div>
   )
+}
+
+function resolveImagePreviewURL(value: string) {
+  if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
+    return value
+  }
+  return `/api/asset/${encodeURIComponent(value)}`
 }

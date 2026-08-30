@@ -179,7 +179,7 @@ func BuildMessageWithReadStatesAndLocale(item *models.Message, agentReadState, c
 				if dn := strings.TrimSpace(profile.DisplayName); dn != "" {
 					ret.SenderName = dn
 				}
-				if av := strings.TrimSpace(profile.Avatar); av != "" {
+				if av := utils.BuildAvatarURL(profile.Avatar); av != "" {
 					ret.SenderAvatar = av
 				}
 			}

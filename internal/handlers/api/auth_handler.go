@@ -211,6 +211,16 @@ func UploadProfileAvatar(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, builders.BuildAsset(item))
 }
 
+func AssetGetByAssetID(ctx *gin.Context) {
+	accessURL, err := services.AssetService.GetSignedURLByAssetID(ctx.Param("assetId"))
+	if err != nil || accessURL == "" {
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	ctx.Header("Cache-Control", "private, no-store")
+	ctx.Redirect(http.StatusFound, accessURL)
+}
+
 func wxWorkErrorMessage(message string) string {
 	return loginErrorMessage(message)
 }
