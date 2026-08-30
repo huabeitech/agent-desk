@@ -107,7 +107,7 @@ export function PostDetail() {
         <article className="flex w-full max-w-6xl flex-col gap-6">
           <section className="overflow-hidden rounded-md bg-card">
             <header className="border-b border-border px-4 py-3 sm:px-6">
-              <h1 className="text-balance text-[26px] leading-9 font-bold break-words text-foreground">{post.title}</h1>
+              <h1 className="text-balance text-[26px] leading-9 font-bold wrap-break-word text-foreground">{post.title}</h1>
               <div className="mt-3 flex min-w-0 items-center gap-2.5">
                 <Avatar className="size-10">
                   <AvatarImage src={post.user.avatar} alt={authorName} />
@@ -130,13 +130,13 @@ export function PostDetail() {
 
             <div className="flex border-t border-border">
               <span className="flex min-h-11 flex-1 items-center justify-center gap-1.5 text-sm text-muted-foreground" title={t("supportPublic.posts.views")}>
-                <EyeIcon className="size-[18px]" /> {post.viewCount}
+                <EyeIcon className="size-4.5" /> {post.viewCount}
               </span>
-              <Button variant="ghost" size="sm" className="h-11 flex-1 rounded-none text-muted-foreground hover:text-primary" onClick={() => void ensureSupportLogin().then(() => toggleReaction({ targetType: "post", targetId: post.id })).then(reload)}>
-                <ThumbsUpIcon className="size-[18px]" /> {post.reactionCount}
+              <Button variant="ghost" size="sm" className="min-h-11 flex-1 rounded-none border-0 text-muted-foreground hover:text-primary" onClick={() => void ensureSupportLogin().then(() => toggleReaction({ targetType: "post", targetId: post.id })).then(reload)}>
+                <ThumbsUpIcon className="size-4.5" /> {post.reactionCount}
               </Button>
               <span className="flex min-h-11 flex-1 items-center justify-center gap-1.5 text-sm text-muted-foreground" title={t("supportPublic.posts.comments")}>
-                <MessageCircleMoreIcon className="size-[18px]" /> {post.commentCount}
+                <MessageCircleMoreIcon className="size-4.5" /> {post.commentCount}
               </span>
             </div>
           </section>
