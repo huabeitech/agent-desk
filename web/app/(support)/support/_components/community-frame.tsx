@@ -6,17 +6,20 @@ import { CommunityCategoryMenuContent, CommunityCategoryNav } from "@/app/(suppo
 import { SupportPageLayout } from "@/app/(support)/support/_components/support-page-layout"
 import { useCommunityCategoryRoute } from "@/app/(support)/support/_components/support-community-route"
 import { useI18n } from "@/i18n/provider"
+import { cn } from "@/lib/utils"
 
 export function CommunityFrame({
   active,
   categoryRoute,
   children,
   toc,
+  contentCard = true,
 }: {
   active?: number | "all"
   categoryRoute: ReturnType<typeof useCommunityCategoryRoute>
   children: ReactNode
   toc?: ReactNode
+  contentCard?: boolean
 }) {
   const t = useI18n()
   const categoryNavigation = (
@@ -53,7 +56,7 @@ export function CommunityFrame({
         content: <div className="grid gap-0.5">{categoryNavigation}</div>,
       }}
     >
-      <section className="min-w-0 rounded-md bg-card">
+      <section className={cn("min-w-0", contentCard && "rounded-md bg-card")}>
         {children}
       </section>
     </SupportPageLayout>

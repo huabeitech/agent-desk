@@ -102,10 +102,10 @@ export function PostDetail() {
   const hasMoreComments = comments.length < commentPage.total
 
   return (
-    <CommunityFrame active={post?.categoryId ?? "all"} categoryRoute={categoryRoute} toc={postToc}>
-      <div className="px-4 py-7 sm:px-6 sm:py-10 lg:px-8 2xl:px-10">
-        {post ? (
-          <article className="w-full max-w-6xl">
+    <CommunityFrame active={post?.categoryId ?? "all"} categoryRoute={categoryRoute} toc={postToc} contentCard={false}>
+      {post ? (
+        <article className="flex w-full max-w-6xl flex-col gap-6">
+          <section className="rounded-md bg-card px-4 py-4 sm:px-6 sm:py-6 lg:px-8 2xl:px-8">
             <Breadcrumb className="text-xs">
               <BreadcrumbList className="gap-y-1">
                 <BreadcrumbItem>
@@ -142,52 +142,51 @@ export function PostDetail() {
               <PostMetric icon={<MessageCircleMoreIcon className="size-3.5" />} value={post.commentCount} label={t("supportPublic.posts.comments")} />
               <PostMetric icon={<EyeIcon className="size-3.5" />} value={post.viewCount} label={t("supportPublic.posts.views")} />
             </div>
+          </section>
 
-            <section className="mt-8 border-t border-border/70 pt-6" aria-label={t("supportPublic.posts.comments")}>
-              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight">{t("supportPublic.posts.comments")}</h2>
-                  <div className="mt-1 text-sm text-muted-foreground">{t("supportPublic.comment.count", { count: commentPage.total || post.commentCount })}</div>
-                </div>
-                <div className="inline-flex w-fit gap-1 rounded-md bg-muted p-0.5">
-                  {(["default", "latest", "hot"] as const).map((sort) => (
-                    <button
-                      key={sort}
-                      type="button"
-                      className={cn(
-                        "h-7 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        commentSort === sort ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
-                      )}
-                      aria-pressed={commentSort === sort}
-                      onClick={() => setCommentSort(sort)}
-                    >
-                      {t(`supportPublic.comment.sort.${sort}`)}
-                    </button>
-                  ))}
-                </div>
+          <section className="rounded-md bg-card px-4 py-6 sm:px-6 sm:py-8 lg:px-8" aria-label={t("supportPublic.posts.comments")}>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">{t("supportPublic.posts.comments")}</h2>
+                <div className="mt-1 text-sm text-muted-foreground">{t("supportPublic.comment.count", { count: commentPage.total || post.commentCount })}</div>
               </div>
-              {comments.length ? (
-                <div className="divide-y divide-border/70">
-                  {comments.map((comment) => (
-                    <CommentItem key={comment.id} comment={comment} post={post} currentUserId={currentUserId} onChanged={reload} />
-                  ))}
-                </div>
-              ) : commentsLoading ? (
-                <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                  <LoaderCircleIcon className="size-4 animate-spin" />
-                  {t("supportPublic.loading.comments")}
-                </div>
-              ) : <EmptyState text={t("supportPublic.empty.noComments")} />}
-              {hasMoreComments ? (
-                <div className="mt-4 flex justify-center">
-                  <Button variant="secondary" size="sm" className="rounded-md" disabled={commentsLoading} onClick={() => loadComments(commentPage.page + 1, true)}>
-                    {commentsLoading ? <LoaderCircleIcon className="animate-spin" /> : <ChevronDownIcon />}
-                    {commentsLoading ? t("supportPublic.loading.comments") : t("supportPublic.actions.loadMore")}
-                  </Button>
-                </div>
-              ) : null}
-            </section>
-
+              <div className="inline-flex w-fit gap-1 rounded-md bg-muted p-0.5">
+                {(["default", "latest", "hot"] as const).map((sort) => (
+                  <button
+                    key={sort}
+                    type="button"
+                    className={cn(
+                      "h-7 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      commentSort === sort ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                    )}
+                    aria-pressed={commentSort === sort}
+                    onClick={() => setCommentSort(sort)}
+                  >
+                    {t(`supportPublic.comment.sort.${sort}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {comments.length ? (
+              <div className="divide-y divide-border/70">
+                {comments.map((comment) => (
+                  <CommentItem key={comment.id} comment={comment} post={post} currentUserId={currentUserId} onChanged={reload} />
+                ))}
+              </div>
+            ) : commentsLoading ? (
+              <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                <LoaderCircleIcon className="size-4 animate-spin" />
+                {t("supportPublic.loading.comments")}
+              </div>
+            ) : <EmptyState text={t("supportPublic.empty.noComments")} />}
+            {hasMoreComments ? (
+              <div className="mt-4 flex justify-center">
+                <Button variant="secondary" size="sm" className="rounded-md" disabled={commentsLoading} onClick={() => loadComments(commentPage.page + 1, true)}>
+                  {commentsLoading ? <LoaderCircleIcon className="animate-spin" /> : <ChevronDownIcon />}
+                  {commentsLoading ? t("supportPublic.loading.comments") : t("supportPublic.actions.loadMore")}
+                </Button>
+              </div>
+            ) : null}
             <section className="mt-6 border-t border-border/70 pt-5" aria-labelledby="support-comment-editor-title">
               <h2 id="support-comment-editor-title" className="text-base font-semibold">{t("supportPublic.comment.title")}</h2>
               <div className="mt-3 min-w-0">
@@ -207,13 +206,13 @@ export function PostDetail() {
                 </Button>
               </div>
             </section>
-          </article>
-        ) : (
-          <div className="grid min-h-[60svh] place-items-center">
-            <EmptyState text={t("supportPublic.loading.post")} />
-          </div>
-        )}
-      </div>
+          </section>
+        </article>
+      ) : (
+        <div className="grid min-h-[60svh] place-items-center">
+          <EmptyState text={t("supportPublic.loading.post")} />
+        </div>
+      )}
     </CommunityFrame>
   )
 }
