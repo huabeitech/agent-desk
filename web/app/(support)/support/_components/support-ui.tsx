@@ -46,10 +46,6 @@ export function SupportFormField({ label, children }: { label: string; children:
   )
 }
 
-export function SupportEmptyState({ text, compact = false }: { text: string; compact?: boolean }) {
-  return <div className={cn("rounded-md border border-dashed bg-card p-8 text-center text-sm text-muted-foreground", compact && "border-0 p-5")}>{text}</div>
-}
-
 export function PostStatusBadge({ status }: { status: string }) {
   const t = useI18n()
   if (status === "resolved") return <Badge className="bg-emerald-600 text-white"><CheckCircle2Icon /> {t("supportPublic.status.resolved")}</Badge>

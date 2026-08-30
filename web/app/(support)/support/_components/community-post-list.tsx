@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 
-import { SupportEmptyState } from "@/app/(support)/support/_components/support-ui"
+import { EmptyState } from "@/components/empty-state"
 import { PostCard } from "@/app/(support)/support/community/posts/_components/post-ui"
 import { LoadMore } from "@/components/load-more"
 import { useI18n } from "@/i18n/provider"
@@ -47,7 +47,7 @@ export function CommunityPostList({
           {items.map((item) => <PostCard key={item.id} item={item} />)}
         </ul>
       )}
-      renderEmpty={() => <SupportEmptyState text={emptyText} />}
+      renderEmpty={() => <EmptyState text={emptyText} />}
     />
   )
 }

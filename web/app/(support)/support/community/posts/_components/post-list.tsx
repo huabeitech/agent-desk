@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 
 import { CommunityFrame } from "@/app/(support)/support/_components/community-frame"
 import { CommunityPostList } from "@/app/(support)/support/_components/community-post-list"
-import { SupportEmptyState as EmptyState } from "@/app/(support)/support/_components/support-ui"
+import { EmptyState } from "@/components/empty-state"
 import { useCommunityCategoryRoute } from "@/app/(support)/support/_components/support-community-route"
 import { PostListLoading } from "@/app/(support)/support/community/posts/_components/post-ui"
 import { useI18n } from "@/i18n/provider"
