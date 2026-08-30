@@ -34,12 +34,13 @@ export type Post = {
   acceptedCommentId: number
   commentCount: number
   reactionCount: number
+  isLiked: boolean
   viewCount: number
   createdAt: string
   updatedAt: string
 }
 
-export type PostListItem = Omit<Post, "contentType" | "content"> & {
+export type PostListItem = Omit<Post, "contentType" | "content" | "isLiked"> & {
   summary: string
 }
 
@@ -96,7 +97,7 @@ export function fetchPosts(query?: Record<string, string | number | undefined>) 
 }
 
 export function fetchPost(id: number) {
-  return request<PostDetail>(`/api/support/community/posts/${id}`, { skipAuth: true })
+  return request<PostDetail>(`/api/support/community/posts/${id}`)
 }
 
 export function createPost(payload: {

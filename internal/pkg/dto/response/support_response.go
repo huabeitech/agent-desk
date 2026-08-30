@@ -115,6 +115,7 @@ type PostResponse struct {
 	AcceptedCommentID   int64                   `json:"acceptedCommentId"`
 	CommentCount        int64                   `json:"commentCount"`
 	ReactionCount       int64                   `json:"reactionCount"`
+	IsLiked             bool                    `json:"isLiked"`
 	ViewCount           int64                   `json:"viewCount"`
 	LastCommentedAt     string                  `json:"lastCommentedAt"`
 	LastCommentUserType enums.CommentAuthorType `json:"lastCommentUserType"`

@@ -43,6 +43,7 @@ export function PostDetail() {
   const [commentPage, setCommentPage] = useState({ page: 1, limit: 20, total: 0 })
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [reactionPending, setReactionPending] = useState(false)
   const postArticleId = post ? `support-post-${post.id}` : ""
   const postToc = post && hasArticleTocHeadings(post.content, post.contentType)
     ? <PublicArticleToc articleId={postArticleId} content={post.content} contentType={post.contentType} stickyOffset="content" />
@@ -97,6 +98,19 @@ export function PostDetail() {
       setSubmitting(false)
     }
   }
+
+  const togglePostReaction = async () => {
+    if (!post || reactionPending) return
+    setReactionPending(true)
+    try {
+      await ensureSupportLogin()
+      await toggleReaction({ targetType: "post", targetId: post.id })
+      reload()
+    } finally {
+      setReactionPending(false)
+    }
+  }
+
   const hasMoreComments = comments.length < commentPage.total
   const authorName = post?.user.displayName || t("supportPublic.common.user")
   const authorAvatarText = authorName.trim().slice(0, 1).toUpperCase()
@@ -132,8 +146,16 @@ export function PostDetail() {
               <span className="flex min-h-11 flex-1 items-center justify-center gap-1.5 text-sm text-muted-foreground" title={t("supportPublic.posts.views")}>
                 <EyeIcon className="size-4.5" /> {post.viewCount}
               </span>
-              <Button variant="ghost" size="sm" className="min-h-11 flex-1 rounded-none border-0 text-muted-foreground hover:text-primary" onClick={() => void ensureSupportLogin().then(() => toggleReaction({ targetType: "post", targetId: post.id })).then(reload)}>
-                <ThumbsUpIcon className="size-4.5" /> {post.reactionCount}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 flex-1 rounded-none border-0 text-muted-foreground hover:text-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
+                aria-label={t("supportPublic.posts.likes")}
+                aria-pressed={post.isLiked}
+                disabled={reactionPending}
+                onClick={() => void togglePostReaction()}
+              >
+                <ThumbsUpIcon className={cn("size-4.5", post.isLiked && "fill-current")} /> {post.reactionCount}
               </Button>
               <span className="flex min-h-11 flex-1 items-center justify-center gap-1.5 text-sm text-muted-foreground" title={t("supportPublic.posts.comments")}>
                 <MessageCircleMoreIcon className="size-4.5" /> {post.commentCount}

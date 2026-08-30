@@ -144,6 +144,16 @@ func (s *supportService) RequireSupportUser(ctx *gin.Context) (*dto.AuthPrincipa
 	return principal, nil
 }
 
+func (s *supportService) OptionalSupportUser(ctx *gin.Context) (*dto.AuthPrincipal, error) {
+	if principal := s.GetSupportUser(ctx); principal != nil {
+		return principal, nil
+	}
+	if ctx == nil || (strings.TrimSpace(ctx.GetHeader("Authorization")) == "" && strings.TrimSpace(ctx.Query("accessToken")) == "") {
+		return nil, nil
+	}
+	return s.RequireSupportUser(ctx)
+}
+
 func (s *supportService) GetSupportUser(ctx *gin.Context) *dto.AuthPrincipal {
 	if ctx == nil {
 		return nil
@@ -694,6 +704,13 @@ func (s *supportService) ToggleReaction(targetType enums.ReactionTarget, targetI
 		}
 		return updateReactionCount(ctx.Tx, delta)
 	})
+}
+
+func (s *supportService) HasReaction(targetType enums.ReactionTarget, targetID int64, reactionType enums.ReactionType, principal *dto.AuthPrincipal) bool {
+	if principal == nil || principal.UserID <= 0 {
+		return false
+	}
+	return repositories.ReactionRepository.Get(sqls.DB(), string(targetType), targetID, principal.UserID, string(reactionType)) != nil
 }
 
 func (s *supportService) ModeratePost(req request.ModeratePostRequest) error {

@@ -135,6 +135,11 @@ func PostGetBy(ctx *gin.Context) {
 	if !ok {
 		return
 	}
+	principal, err := services.SupportService.OptionalSupportUser(ctx)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
 	post := repositories.PostRepository.Get(sqls.DB(), id)
 	if post == nil || post.Status == enums.PostStatusHidden || post.Status == enums.PostStatusDeleted {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.notFound"))
@@ -151,7 +156,9 @@ func PostGetBy(ctx *gin.Context) {
 	if category := data.Categories[post.CategoryID]; category != nil {
 		categoryName = category.Name
 	}
-	httpx.WriteJSON(ctx, response.PostDetailResponse{Post: *builders.BuildPost(post, categoryName, data.Users[post.UserID]), Comments: buildCommentListWithReplies(comments.Comments, comments.Replies, data.Users)})
+	postResponse := builders.BuildPost(post, categoryName, data.Users[post.UserID])
+	postResponse.IsLiked = services.SupportService.HasReaction(enums.ReactionTargetPost, post.ID, enums.ReactionTypeLike, principal)
+	httpx.WriteJSON(ctx, response.PostDetailResponse{Post: *postResponse, Comments: buildCommentListWithReplies(comments.Comments, comments.Replies, data.Users)})
 }
 
 func PostPostCreate(ctx *gin.Context) {
