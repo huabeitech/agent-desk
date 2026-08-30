@@ -153,17 +153,17 @@ function LoadMoreContent<T>({
   )
 
   React.useEffect(() => {
-    if (!initialLoad || initialItems.length > 0 || loaded || loading || inFlightRef.current) {
+    if (!initialLoad || initialItems.length > 0 || loaded || loading || error || inFlightRef.current) {
       return
     }
     const timer = window.setTimeout(() => {
       void loadMore(true)
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [initialItems.length, initialLoad, loadMore, loaded, loading])
+  }, [error, initialItems.length, initialLoad, loadMore, loaded, loading])
 
   React.useEffect(() => {
-    if (!autoLoadOnScroll || !hasMore || loading) {
+    if (!autoLoadOnScroll || !hasMore || loading || error) {
       return
     }
     const sentinel = sentinelRef.current
@@ -182,7 +182,7 @@ function LoadMoreContent<T>({
     observer.observe(sentinel)
 
     return () => observer.disconnect()
-  }, [autoLoadOnScroll, hasMore, loadMore, loading])
+  }, [autoLoadOnScroll, error, hasMore, loadMore, loading])
 
   async function onLoadMore() {
     if (inFlightRef.current || !hasMore) {
