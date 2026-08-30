@@ -33,9 +33,9 @@ export function CommunityFrame({
   return (
     <SupportPageLayout
       section="community"
-      sidebarBreakpoint="xl"
+      startAsideBreakpoint="xl"
       contentClassName="py-6 sm:py-8"
-      sidebar={(
+      startAside={(
         <CommunityCategoryNav
           categories={categoryRoute.categories}
           active={active ?? categoryRoute.activeCategoryId}
@@ -45,7 +45,8 @@ export function CommunityFrame({
           onRetry={categoryRoute.loadCategories}
         />
       )}
-      toc={toc}
+      endAside={toc}
+      endAsideClassName="rounded-md bg-card"
       mobileNavigation={{
         title: t("supportPublic.posts.categoryNavigation"),
         content: <div className="grid gap-0.5">{categoryNavigation}</div>,

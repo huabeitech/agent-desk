@@ -41,7 +41,7 @@ export function SupportProfilePage() {
     <SupportPageLayout
       section="community"
       contentClassName="py-6 sm:py-8"
-      sidebar={(
+      startAside={(
         <aside className="h-fit rounded-md bg-card p-5">
           <div className="flex items-center gap-3">
             <Avatar className="size-14">

@@ -103,7 +103,7 @@ export function PublicArticleToc({
         )}
         scrollbarClassName="opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
       >
-        <div className="px-5 py-12">
+        <div className="p-5">
           <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("supportPublic.help.toc")}</div>
           {headings.length ? headings.map((item, index) => (
             <a

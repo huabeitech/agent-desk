@@ -1,4 +1,4 @@
-import { type ReactNode } from "react"
+import { type CSSProperties, type ReactNode } from "react"
 
 import { SupportPageContent, SupportPageShell, type SupportPageMobileNavigation } from "@/app/(support)/support/_components/support-page-shell"
 import { type SupportHeaderSection } from "@/app/(support)/support/_components/support-header"
@@ -7,46 +7,78 @@ import { cn } from "@/lib/utils"
 type SupportPageLayoutProps = {
   children: ReactNode
   section?: SupportHeaderSection
-  sidebar?: ReactNode
-  toc?: ReactNode
+  startAside?: ReactNode
+  endAside?: ReactNode
+  startAsideWidth?: string
+  endAsideWidth?: string
+  startAsideBreakpoint?: "lg" | "xl"
+  endAsideBreakpoint?: "xl" | "2xl"
+  startAsideClassName?: string
+  endAsideClassName?: string
   mobileNavigation?: SupportPageMobileNavigation
-  sidebarBreakpoint?: "lg" | "xl"
   contentClassName?: string
   fullBleed?: boolean
 }
 
-const sidebarColumnClasses = {
-  lg: "lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]",
-  xl: "xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]",
+const startAsideColumnClasses = {
+  lg: "lg:grid-cols-[var(--support-layout-start-aside-width)_minmax(0,1fr)]",
+  xl: "xl:grid-cols-[var(--support-layout-start-aside-width)_minmax(0,1fr)]",
+}
+
+const endAsideColumnClasses = {
+  xl: "xl:grid-cols-[minmax(0,1fr)_var(--support-layout-end-aside-width)]",
+  "2xl": "2xl:grid-cols-[minmax(0,1fr)_var(--support-layout-end-aside-width)]",
+}
+
+const threeColumnClasses = {
+  xl: "xl:grid-cols-[var(--support-layout-start-aside-width)_minmax(0,1fr)_var(--support-layout-end-aside-width)]",
+  "2xl": "2xl:grid-cols-[var(--support-layout-start-aside-width)_minmax(0,1fr)_var(--support-layout-end-aside-width)]",
+}
+
+const endAsideVisibilityClasses = {
+  xl: "hidden xl:block",
+  "2xl": "hidden 2xl:block",
 }
 
 export function SupportPageLayout({
   children,
   section = "home",
-  sidebar,
-  toc,
+  startAside,
+  endAside,
+  startAsideWidth = "20rem",
+  endAsideWidth = "var(--support-doc-toc-width)",
+  startAsideBreakpoint = "lg",
+  endAsideBreakpoint = "2xl",
+  startAsideClassName,
+  endAsideClassName,
   mobileNavigation,
-  sidebarBreakpoint = "lg",
   contentClassName,
   fullBleed = false,
 }: SupportPageLayoutProps) {
-  const hasColumns = Boolean(sidebar || toc)
+  const hasColumns = Boolean(startAside || endAside)
+  const endAsideStartsGridAtSameBreakpoint = startAside && endAside && startAsideBreakpoint === endAsideBreakpoint
+  const layoutStyle = {
+    "--support-layout-start-aside-width": startAsideWidth,
+    "--support-layout-end-aside-width": endAsideWidth,
+  } as CSSProperties
 
   return (
     <SupportPageShell section={section} mobileNavigation={mobileNavigation}>
       {fullBleed ? children : (
         <SupportPageContent
           width="docs"
+          style={layoutStyle}
           className={cn(
             hasColumns && "grid items-start gap-6",
-            sidebar && sidebarColumnClasses[sidebarBreakpoint],
-            toc && (sidebar ? "2xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)_var(--support-doc-toc-width)]" : "2xl:grid-cols-[minmax(0,1fr)_var(--support-doc-toc-width)]"),
+            startAside && !endAsideStartsGridAtSameBreakpoint && startAsideColumnClasses[startAsideBreakpoint],
+            endAside && !startAside && endAsideColumnClasses[endAsideBreakpoint],
+            startAside && endAside && threeColumnClasses[endAsideBreakpoint],
             contentClassName
           )}
         >
-          {sidebar}
+          {startAside ? <div className={cn("min-w-0 self-stretch", startAsideClassName)}>{startAside}</div> : null}
           {children}
-          {toc ? <div className="hidden min-w-0 self-stretch rounded-md bg-card 2xl:block">{toc}</div> : null}
+          {endAside ? <div className={cn("min-w-0 self-stretch", endAsideVisibilityClasses[endAsideBreakpoint], endAsideClassName)}>{endAside}</div> : null}
         </SupportPageContent>
       )}
     </SupportPageShell>
