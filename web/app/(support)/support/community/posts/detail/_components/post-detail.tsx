@@ -120,16 +120,16 @@ export function PostDetail() {
       {post ? (
         <article className="flex w-full max-w-6xl flex-col gap-6">
           <section className="overflow-hidden rounded-md bg-card">
-            <header className="border-b border-border px-4 py-3 sm:px-6">
+            <header className="border-b border-border px-4 pt-3 pb-2.5 sm:px-6">
               <h1 className="text-balance text-[26px] leading-9 font-bold wrap-break-word text-foreground">{post.title}</h1>
-              <div className="mt-3 flex min-w-0 items-center gap-2.5">
-                <Avatar className="size-10">
+              <div className="mt-2 flex min-w-0 items-center gap-2.5">
+                <Avatar className="size-8">
                   <AvatarImage src={post.user.avatar} alt={authorName} />
-                  <AvatarFallback className="bg-muted text-sm font-medium text-muted-foreground">{authorAvatarText}</AvatarFallback>
+                  <AvatarFallback className="bg-muted text-xs font-medium text-muted-foreground">{authorAvatarText}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 text-xs text-muted-foreground">
-                  <div className="truncate text-sm">{authorName}</div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 leading-6">
+                  <div className="truncate text-sm leading-4.5">{authorName}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 leading-4">
                     <span>{t("supportPublic.posts.updatedAt", { date: formatDateTime(post.updatedAt || post.createdAt) })}</span>
                     <PostStatusBadge status={post.status} />
                   </div>
