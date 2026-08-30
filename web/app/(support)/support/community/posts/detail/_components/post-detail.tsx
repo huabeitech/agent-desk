@@ -183,7 +183,7 @@ export function PostDetail() {
                 </Button>
               </div>
             </section>
-            <section className="border-t border-border px-4 py-2 sm:px-6" aria-label={t("supportPublic.posts.comments")}>
+            <section className="px-4 py-2 sm:px-6" aria-label={t("supportPublic.posts.comments")}>
               {comments.length ? (
                 <div className="divide-y divide-border/70">
                   {comments.map((comment) => (
