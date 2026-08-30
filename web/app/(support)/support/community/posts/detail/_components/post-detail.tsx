@@ -149,7 +149,10 @@ export function PostDetail() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="min-h-11 flex-1 rounded-none border-0 text-muted-foreground hover:text-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
+                className={cn(
+                  "min-h-11 flex-1 rounded-none border-0 hover:bg-transparent dark:hover:bg-transparent",
+                  post.isLiked ? "text-destructive hover:text-destructive" : "text-muted-foreground hover:text-primary"
+                )}
                 aria-label={t("supportPublic.posts.likes")}
                 aria-pressed={post.isLiked}
                 disabled={reactionPending}
