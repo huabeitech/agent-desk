@@ -46,7 +46,7 @@ export function PostDetail() {
   const [submitting, setSubmitting] = useState(false)
   const postArticleId = post ? `support-post-${post.id}` : ""
   const postToc = post && hasArticleTocHeadings(post.content, post.contentType)
-    ? <PublicArticleToc articleId={postArticleId} content={post.content} contentType={post.contentType} />
+    ? <PublicArticleToc articleId={postArticleId} content={post.content} contentType={post.contentType} stickyOffset="content" />
     : null
   const currentUserId = readSession()?.user.id ?? 0
 

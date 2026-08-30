@@ -6,7 +6,17 @@ import { useI18n } from "@/i18n/provider"
 import { articleHeadingId, markdownHeadingText } from "@/lib/support-article"
 import { cn } from "@/lib/utils"
 
-export function PublicArticleToc({ articleId, content, contentType = "markdown" }: { articleId: string; content: string; contentType?: string }) {
+export function PublicArticleToc({
+  articleId,
+  content,
+  contentType = "markdown",
+  stickyOffset = "header",
+}: {
+  articleId: string
+  content: string
+  contentType?: string
+  stickyOffset?: "header" | "content"
+}) {
   const t = useI18n()
   const tocRef = useRef<HTMLElement>(null)
   const headings = useMemo(() => getArticleTocHeadings(content, contentType), [content, contentType])
@@ -82,7 +92,13 @@ export function PublicArticleToc({ articleId, content, contentType = "markdown" 
   }, [activeId])
 
   return (
-    <aside ref={tocRef} className="sticky top-14 max-h-[calc(100svh-3.5rem)] overflow-y-auto px-5 py-12">
+    <aside
+      ref={tocRef}
+      className={cn(
+        "sticky overflow-y-auto px-5 py-12",
+        stickyOffset === "content" ? "top-[5.5rem] max-h-[calc(100svh-5.625rem)]" : "top-14 max-h-[calc(100svh-3.5rem)]"
+      )}
+    >
       <div>
         <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("supportPublic.help.toc")}</div>
         {headings.length ? headings.map((item, index) => (

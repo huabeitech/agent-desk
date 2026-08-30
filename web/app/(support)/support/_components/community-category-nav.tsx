@@ -2,7 +2,6 @@
 
 import { FileTextIcon, LayoutGridIcon } from "lucide-react"
 
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { useI18n } from "@/i18n/provider"
 import type { Category } from "@/lib/api/support-community"
 import { cn } from "@/lib/utils"
@@ -20,13 +19,11 @@ type CommunityCategoryNavProps = {
 export function CommunityCategoryNav(props: CommunityCategoryNavProps) {
   const t = useI18n()
   return (
-    <aside className="hidden min-w-0 self-start xl:sticky xl:top-14 xl:block xl:h-[calc(100svh-3.5rem)] xl:border-r" aria-label={t("supportPublic.posts.categoryNavigation")}>
-      <nav className="h-full overflow-hidden border-b bg-background xl:border-b-0">
-        <ScrollArea className="h-full">
-          <div className="grid gap-0.5 px-3 py-4">
-            <CommunityCategoryMenuContent {...props} />
-          </div>
-        </ScrollArea>
+    <aside className="hidden min-w-0 self-start overflow-hidden rounded-md bg-card xl:sticky xl:top-[5.5rem] xl:block xl:max-h-[calc(100svh-5.625rem)]" aria-label={t("supportPublic.posts.categoryNavigation")}>
+      <nav className="max-h-[calc(100svh-5.625rem)] overflow-y-auto">
+        <div className="grid gap-0.5 px-3 py-4">
+          <CommunityCategoryMenuContent {...props} />
+        </div>
       </nav>
     </aside>
   )

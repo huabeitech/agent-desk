@@ -4,11 +4,26 @@ import { SupportAIChatWidget } from "@/app/(support)/support/_components/support
 import { SupportHeader, type SupportHeaderSection } from "@/app/(support)/support/_components/support-header"
 import { cn } from "@/lib/utils"
 
-export function SupportPageShell({ children, section = "home" }: { children: ReactNode; section?: SupportHeaderSection }) {
+export type SupportPageMobileNavigation = {
+  title: string
+  content: ReactNode
+}
+
+export type SupportPageShellProps = {
+  children: ReactNode
+  section?: SupportHeaderSection
+  mobileNavigation?: SupportPageMobileNavigation
+}
+
+export function SupportPageShell({
+  children,
+  section = "home",
+  mobileNavigation,
+}: SupportPageShellProps) {
   return (
     // <div className="min-h-svh overflow-x-clip bg-[#f7f9fc] text-foreground dark:bg-background">
     <div className="min-h-svh overflow-x-clip bg-[#F4F6FF] text-foreground dark:bg-background">
-      <SupportHeader section={section} />
+      <SupportHeader section={section} mobileNavigation={mobileNavigation} />
       {children}
       <SupportAIChatWidget />
     </div>
