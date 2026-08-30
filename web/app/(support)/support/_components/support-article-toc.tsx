@@ -96,11 +96,12 @@ export function PublicArticleToc({
     <aside ref={tocRef} className={cn("sticky", stickyOffset === "content" ? "top-[5.5rem]" : "top-14")}>
       <ScrollArea
         className={cn(
-          "h-fit [&>[data-slot=scroll-area-viewport]]:h-fit",
+          "group h-fit [&>[data-slot=scroll-area-viewport]]:h-fit",
           stickyOffset === "content"
             ? "[&>[data-slot=scroll-area-viewport]]:max-h-[calc(100svh-5.625rem)]"
             : "[&>[data-slot=scroll-area-viewport]]:max-h-[calc(100svh-3.5rem)]"
         )}
+        scrollbarClassName="opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
       >
         <div className="px-5 py-12">
           <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("supportPublic.help.toc")}</div>

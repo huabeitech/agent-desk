@@ -48,9 +48,10 @@ export function CommunityCategoryMenuContent({
   return (
     <ScrollArea
       className={cn(
-        "h-fit [&>[data-slot=scroll-area-viewport]]:h-fit [&>[data-slot=scroll-area-viewport]]:max-h-[calc(100svh-7.625rem)]",
+        "group h-fit [&>[data-slot=scroll-area-viewport]]:h-fit [&>[data-slot=scroll-area-viewport]]:max-h-[calc(100svh-7.625rem)]",
         className
       )}
+      scrollbarClassName="opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
     >
       <div className={cn("grid gap-0.5", contentClassName)}>
         <button type="button" data-support-mobile-menu-close="true" data-category-id="all" onClick={() => choose("all")} className={categoryItemClassName(active === "all")} aria-pressed={active === "all"}>
