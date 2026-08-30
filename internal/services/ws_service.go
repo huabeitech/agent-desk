@@ -364,7 +364,7 @@ func (s *wsService) fillRealtimeMessageSender(ret *response.MessageResponse, ite
 			if displayName := strings.TrimSpace(profile.DisplayName); displayName != "" {
 				ret.SenderName = displayName
 			}
-			if avatar := utils.BuildAvatarURL(profile.Avatar, "/api/avatar/agent/"+strconv.FormatInt(profile.ID, 10)); avatar != "" {
+			if avatar := profile.AgentAvatar(); avatar != "" {
 				ret.SenderAvatar = avatar
 			}
 		}

@@ -6,7 +6,6 @@ import (
 	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/pkg/utils"
 	"encoding/json"
-	"strconv"
 	"time"
 )
 
@@ -105,7 +104,7 @@ func BuildSimpleUserInfo(item *models.User) response.SimpleUserInfo {
 		Username:    item.Username,
 		Nickname:    item.Nickname,
 		DisplayName: displayName,
-		Avatar:      utils.BuildAvatarURL(item.Avatar, "/api/avatar/user/"+strconv.FormatInt(item.ID, 10)),
+		Avatar:      item.UserAvatarURL(),
 		UserType:    item.UserType,
 	}
 }

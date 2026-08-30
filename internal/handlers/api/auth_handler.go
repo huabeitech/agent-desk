@@ -8,7 +8,6 @@ import (
 	"agent-desk/internal/pkg/errorsx"
 	"agent-desk/internal/pkg/httpx"
 	"agent-desk/internal/pkg/httpx/params"
-	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/services"
 	"log/slog"
 	"net/http"
@@ -222,7 +221,7 @@ func AvatarUserGet(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	redirectAvatarAsset(ctx, utils.AvatarAssetID(user.Avatar))
+	redirectAvatarAsset(ctx, user.UserAvatarAssetID())
 }
 
 func AvatarAgentGet(ctx *gin.Context) {
@@ -235,7 +234,7 @@ func AvatarAgentGet(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	redirectAvatarAsset(ctx, utils.AvatarAssetID(profile.Avatar))
+	redirectAvatarAsset(ctx, profile.AgentAvatarAssetID())
 }
 
 func redirectAvatarAsset(ctx *gin.Context, assetID string) {

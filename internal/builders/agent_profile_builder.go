@@ -5,7 +5,6 @@ import (
 	"agent-desk/internal/pkg/dto/response"
 	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/services"
-	"strconv"
 )
 
 func BuildAgentProfileList(items []models.AgentProfile) []response.AgentProfileResponse {
@@ -62,8 +61,8 @@ func doBuildAgentProfileResponse(item *models.AgentProfile, user *models.User, t
 		TeamID:                item.TeamID,
 		AgentCode:             item.AgentCode,
 		DisplayName:           item.DisplayName,
-		Avatar:                utils.BuildAvatarURL(item.Avatar, "/api/avatar/agent/"+strconv.FormatInt(item.ID, 10)),
-		AvatarAssetID:         utils.AvatarAssetID(item.Avatar),
+		Avatar:                item.AgentAvatar(),
+		AvatarAssetID:         item.AgentAvatarAssetID(),
 		ServiceStatus:         item.ServiceStatus,
 		MaxConcurrentCount:    item.MaxConcurrentCount,
 		PriorityLevel:         item.PriorityLevel,

@@ -16,7 +16,6 @@ import (
 	"net/mail"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -209,8 +208,8 @@ func (s *authService) CurrentProfile(ctx *gin.Context) (*response.LoginResponse,
 			ID:            user.ID,
 			Username:      user.Username,
 			Nickname:      user.Nickname,
-			Avatar:        utils.BuildAvatarURL(user.Avatar, "/api/avatar/user/"+strconv.FormatInt(user.ID, 10)),
-			AvatarAssetID: utils.AvatarAssetID(user.Avatar),
+			Avatar:        user.UserAvatarURL(),
+			AvatarAssetID: user.UserAvatarAssetID(),
 			Email:         derefString(user.Email),
 			UserType:      user.UserType,
 			Status:        user.Status,
@@ -313,8 +312,8 @@ func (s *authService) issueTokens(ctx *sqls.TxContext, user *models.User, client
 			ID:            user.ID,
 			Username:      user.Username,
 			Nickname:      user.Nickname,
-			Avatar:        utils.BuildAvatarURL(user.Avatar, "/api/avatar/user/"+strconv.FormatInt(user.ID, 10)),
-			AvatarAssetID: utils.AvatarAssetID(user.Avatar),
+			Avatar:        user.UserAvatarURL(),
+			AvatarAssetID: user.UserAvatarAssetID(),
 			Email:         derefString(user.Email),
 			UserType:      user.UserType,
 			Status:        user.Status,

@@ -1,7 +1,6 @@
 package builders
 
 import (
-	"strconv"
 	"strings"
 
 	"agent-desk/internal/models"
@@ -180,7 +179,7 @@ func BuildMessageWithReadStatesAndLocale(item *models.Message, agentReadState, c
 				if dn := strings.TrimSpace(profile.DisplayName); dn != "" {
 					ret.SenderName = dn
 				}
-				if av := utils.BuildAvatarURL(profile.Avatar, "/api/avatar/agent/"+strconv.FormatInt(profile.ID, 10)); av != "" {
+				if av := profile.AgentAvatar(); av != "" {
 					ret.SenderAvatar = av
 				}
 			}
