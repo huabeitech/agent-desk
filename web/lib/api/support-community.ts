@@ -12,13 +12,20 @@ export type Category = {
   status: number
 }
 
+export type SimpleUserInfo = {
+  id: number
+  username: string
+  nickname: string
+  displayName: string
+  avatar: string
+  userType: string
+}
+
 export type Post = {
   id: number
   categoryId: number
   categoryName: string
-  userId: number
-  userName: string
-  userType: string
+  user: SimpleUserInfo
   title: string
   contentType: string
   content: string
@@ -32,13 +39,16 @@ export type Post = {
   updatedAt: string
 }
 
+export type PostListItem = Omit<Post, "contentType" | "content"> & {
+  summary: string
+}
+
 export type Comment = {
   id: number
   postId: number
   parentId: number
   authorType: string
-  authorId: number
-  authorName: string
+  user: SimpleUserInfo
   contentType: string
   content: string
   status: string
@@ -80,7 +90,7 @@ export function fetchCategories() {
 }
 
 export function fetchPosts(query?: Record<string, string | number | undefined>) {
-  return request<PageData<Post>>(`/api/support/community/posts/list${toQueryString(query)}`, {
+  return request<PageData<PostListItem>>(`/api/support/community/posts/list${toQueryString(query)}`, {
     skipAuth: true,
   })
 }

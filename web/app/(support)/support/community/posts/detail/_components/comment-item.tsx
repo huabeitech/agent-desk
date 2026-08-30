@@ -16,7 +16,7 @@ import type { ContentValue } from "@/components/content-editor"
 
 export function CommentItem({ comment, post, currentUserId, onChanged }: { comment: Comment; post: Post; currentUserId: number; onChanged: () => void }) {
   const t = useI18n()
-  const authorName = comment.authorName || t("supportPublic.common.user")
+  const authorName = comment.user.displayName || t("supportPublic.common.user")
   const [replying, setReplying] = useState(false)
   const [editing, setEditing] = useState(false)
   const [replyContent, setReplyContent] = useState<ContentValue>({ mode: "html", raw: "" })
@@ -25,9 +25,9 @@ export function CommentItem({ comment, post, currentUserId, onChanged }: { comme
   const [replies, setReplies] = useState(comment.replies || [])
   const [repliesExpanded, setRepliesExpanded] = useState((comment.replies || []).length >= comment.replyCount)
   const isDeleted = comment.status === "deleted"
-  const isAuthor = !isDeleted && currentUserId > 0 && comment.authorId === currentUserId
-  const canAccept = !isDeleted && currentUserId > 0 && currentUserId === post.userId && !comment.isAccepted && comment.parentId === 0
-  const isPostAuthor = comment.authorId === post.userId
+  const isAuthor = !isDeleted && currentUserId > 0 && comment.user.id === currentUserId
+  const canAccept = !isDeleted && currentUserId > 0 && currentUserId === post.user.id && !comment.isAccepted && comment.parentId === 0
+  const isPostAuthor = comment.user.id === post.user.id
   const isReply = comment.parentId > 0
 
   useEffect(() => {

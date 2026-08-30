@@ -126,7 +126,8 @@ func PostAnyList(ctx *gin.Context) {
 	if hasMore && len(list) > 0 {
 		nextCursor = cast.ToString(list[len(list)-1].ID)
 	}
-	httpx.WriteJSON(ctx, httpx.CursorData(buildPostList(list), nextCursor, hasMore))
+	data := services.SupportService.LoadCommunityResponseData(list, nil, nil)
+	httpx.WriteJSON(ctx, httpx.CursorData(builders.BuildPostList(list, data.Categories, data.Users), nextCursor, hasMore))
 }
 
 func PostGetBy(ctx *gin.Context) {
@@ -145,7 +146,12 @@ func PostGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, response.PostDetailResponse{Post: *builders.BuildPost(post, supportCategoryName(post.CategoryID), supportUser(post.UserID)), Comments: buildCommentListWithReplies(comments.Comments, comments.Replies)})
+	data := services.SupportService.LoadCommunityResponseData([]models.Post{*post}, comments.Comments, comments.Replies)
+	categoryName := ""
+	if category := data.Categories[post.CategoryID]; category != nil {
+		categoryName = category.Name
+	}
+	httpx.WriteJSON(ctx, response.PostDetailResponse{Post: *builders.BuildPost(post, categoryName, data.Users[post.UserID]), Comments: buildCommentListWithReplies(comments.Comments, comments.Replies, data.Users)})
 }
 
 func PostPostCreate(ctx *gin.Context) {
@@ -164,7 +170,12 @@ func PostPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPost(item, supportCategoryName(item.CategoryID), supportUser(principal.UserID)))
+	data := services.SupportService.LoadCommunityResponseData([]models.Post{*item}, nil, nil)
+	categoryName := ""
+	if category := data.Categories[item.CategoryID]; category != nil {
+		categoryName = category.Name
+	}
+	httpx.WriteJSON(ctx, builders.BuildPost(item, categoryName, data.Users[item.UserID]))
 }
 
 func PostPostUpdate(ctx *gin.Context) {
@@ -211,7 +222,8 @@ func CommentPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildComment(item, supportPrincipalDisplayName(principal.UserID)))
+	data := services.SupportService.LoadCommunityResponseData(nil, []models.Comment{*item}, nil)
+	httpx.WriteJSON(ctx, builders.BuildComment(item, data.Users[item.AuthorID]))
 }
 
 func CommentAnyList(ctx *gin.Context) {
@@ -225,7 +237,8 @@ func CommentAnyList(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, &web.PageResult{Results: buildCommentListWithReplies(result.Comments, result.Replies), Page: result.Paging})
+	data := services.SupportService.LoadCommunityResponseData(nil, result.Comments, result.Replies)
+	httpx.WriteJSON(ctx, &web.PageResult{Results: buildCommentListWithReplies(result.Comments, result.Replies, data.Users), Page: result.Paging})
 }
 
 func CommentPostUpdate(ctx *gin.Context) {
@@ -294,39 +307,17 @@ func buildDocPageList(list []models.DocPage, includeContent bool) []response.Doc
 	return results
 }
 
-func buildPostList(list []models.Post) []response.PostResponse {
-	results := make([]response.PostResponse, 0, len(list))
-	for _, item := range list {
-		if resp := builders.BuildPost(&item, supportCategoryName(item.CategoryID), supportUser(item.UserID)); resp != nil {
-			results = append(results, *resp)
-		}
-	}
-	return results
-}
-
-func buildCommentList(list []models.Comment) []response.CommentResponse {
-	return buildCommentListWithReplies(list, nil)
-}
-
-func buildCommentListWithReplies(list []models.Comment, replies map[int64][]models.Comment) []response.CommentResponse {
+func buildCommentListWithReplies(list []models.Comment, replies map[int64][]models.Comment, users map[int64]*models.User) []response.CommentResponse {
 	results := make([]response.CommentResponse, 0, len(list))
 	for _, item := range list {
-		if resp := builders.BuildComment(&item, supportCommentAuthorName(item)); resp != nil {
+		if resp := builders.BuildComment(&item, users[item.AuthorID]); resp != nil {
 			if len(replies[item.ID]) > 0 {
-				resp.Replies = buildCommentListWithReplies(replies[item.ID], nil)
+				resp.Replies = buildCommentListWithReplies(replies[item.ID], nil, users)
 			}
 			results = append(results, *resp)
 		}
 	}
 	return results
-}
-
-func supportCategoryName(id int64) string {
-	item := repositories.CategoryRepository.Get(sqls.DB(), id)
-	if item == nil {
-		return ""
-	}
-	return item.Name
 }
 
 func supportUser(id int64) *models.User {
@@ -335,17 +326,6 @@ func supportUser(id int64) *models.User {
 
 func supportPrincipalDisplayName(id int64) string {
 	user := supportUser(id)
-	if user == nil {
-		return ""
-	}
-	if user.Nickname != "" {
-		return user.Nickname
-	}
-	return user.Username
-}
-
-func supportCommentAuthorName(item models.Comment) string {
-	user := repositories.UserRepository.Get(sqls.DB(), item.AuthorID)
 	if user == nil {
 		return ""
 	}

@@ -6,7 +6,7 @@ import { SupportEmptyState } from "@/app/(support)/support/_components/support-u
 import { PostCard } from "@/app/(support)/support/community/posts/_components/post-ui"
 import { LoadMore } from "@/components/load-more"
 import { useI18n } from "@/i18n/provider"
-import { fetchPosts, type Post } from "@/lib/api/support-community"
+import { fetchPosts, type PostListItem } from "@/lib/api/support-community"
 
 type CommunityPostListProps = {
   emptyText: string
@@ -31,7 +31,7 @@ export function CommunityPostList({
   }, [limit, query])
 
   return (
-    <LoadMore<Post>
+    <LoadMore<PostListItem>
       resetKey={resetKey}
       initialHasMore
       initialLoad

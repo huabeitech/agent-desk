@@ -125,7 +125,7 @@ export function PostDetail() {
               <PostStatusBadge status={post.status} />
               <span>{post.categoryName || t("supportPublic.common.uncategorized")}</span>
               <span className="text-muted-foreground/40">/</span>
-              <span>{t("supportPublic.posts.createdBy", { name: post.userName || t("supportPublic.common.user") })}</span>
+              <span>{t("supportPublic.posts.createdBy", { name: post.user.displayName || t("supportPublic.common.user") })}</span>
               <span className="text-muted-foreground/40">/</span>
               <span>{t("supportPublic.posts.updatedAt", { date: formatDateTime(post.updatedAt || post.createdAt) })}</span>
             </div>

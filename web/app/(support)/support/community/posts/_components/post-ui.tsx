@@ -4,24 +4,23 @@ import { type ReactNode } from "react"
 import Link from "next/link"
 import { EyeIcon, MessageCircle, ThumbsUpIcon } from "lucide-react"
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useI18n } from "@/i18n/provider"
-import { postHref, type Post } from "@/lib/api/support-community"
+import { postHref, type PostListItem } from "@/lib/api/support-community"
 import { cn, formatDateTime } from "@/lib/utils"
 
-export function PostCard({ item }: { item: Post }) {
+export function PostCard({ item }: { item: PostListItem }) {
   const t = useI18n()
-  const authorName = item.userName || t("supportPublic.common.user")
+  const authorName = item.user.displayName || t("supportPublic.common.user")
   const avatarText = authorName.trim().slice(0, 1).toUpperCase()
 
   return (
     <li className="px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
-        <span
-          aria-hidden="true"
-          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-muted-foreground"
-        >
-          {avatarText}
-        </span>
+        <Avatar className="size-6 shrink-0">
+          <AvatarImage src={item.user.avatar} alt={authorName} />
+          <AvatarFallback className="bg-muted text-[11px] font-medium text-muted-foreground">{avatarText}</AvatarFallback>
+        </Avatar>
         <div className="flex min-w-0 items-center gap-1 text-xs md:text-sm">
           <span className="max-w-32 truncate text-muted-foreground">{authorName}</span>
           <span className="text-muted-foreground">·</span>
@@ -43,13 +42,13 @@ export function PostCard({ item }: { item: Post }) {
             {item.title}
           </Link>
         </h2>
-        {postExcerpt(item.content) ? (
+        {item.summary ? (
           <Link
             href={postHref(item.id)}
             className="block overflow-hidden text-[15px] leading-6 break-all text-muted-foreground transition-colors hover:text-foreground/80 sm:text-sm sm:leading-normal"
             style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 3 }}
           >
-            {postExcerpt(item.content)}
+            {item.summary}
           </Link>
         ) : null}
       </div>
@@ -107,8 +106,4 @@ export function PostListLoading() {
       ))}
     </div>
   )
-}
-
-function postExcerpt(content: string) {
-  return content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
 }

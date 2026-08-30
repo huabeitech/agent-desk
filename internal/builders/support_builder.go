@@ -4,6 +4,7 @@ import (
 	"agent-desk/internal/models"
 	"agent-desk/internal/pkg/dto/response"
 	"agent-desk/internal/pkg/enums"
+	"agent-desk/internal/pkg/utils"
 	"encoding/json"
 	"time"
 )
@@ -88,26 +89,35 @@ func BuildPostCategories(list []models.Category) []response.CategoryResponse {
 	return ret
 }
 
+const communityPostSummaryLength = 128
+
+func BuildSimpleUserInfo(item *models.User) response.SimpleUserInfo {
+	if item == nil {
+		return response.SimpleUserInfo{}
+	}
+	displayName := item.Nickname
+	if displayName == "" {
+		displayName = item.Username
+	}
+	return response.SimpleUserInfo{
+		ID:          item.ID,
+		Username:    item.Username,
+		Nickname:    item.Nickname,
+		DisplayName: displayName,
+		Avatar:      item.Avatar,
+		UserType:    item.UserType,
+	}
+}
+
 func BuildPost(item *models.Post, categoryName string, user *models.User) *response.PostResponse {
 	if item == nil {
 		return nil
-	}
-	userName := ""
-	userType := enums.UserTypeUser
-	if user != nil {
-		userName = user.Nickname
-		if userName == "" {
-			userName = user.Username
-		}
-		userType = user.UserType
 	}
 	return &response.PostResponse{
 		ID:                  item.ID,
 		CategoryID:          item.CategoryID,
 		CategoryName:        categoryName,
-		UserID:              item.UserID,
-		UserName:            userName,
-		UserType:            userType,
+		User:                BuildSimpleUserInfo(user),
 		Title:               item.Title,
 		ContentType:         item.ContentType,
 		Content:             item.Content,
@@ -125,7 +135,38 @@ func BuildPost(item *models.Post, categoryName string, user *models.User) *respo
 	}
 }
 
-func BuildComment(item *models.Comment, authorName string) *response.CommentResponse {
+func BuildPostList(items []models.Post, categories map[int64]*models.Category, users map[int64]*models.User) []response.PostListItemResponse {
+	results := make([]response.PostListItemResponse, 0, len(items))
+	for i := range items {
+		item := &items[i]
+		categoryName := ""
+		if category := categories[item.CategoryID]; category != nil {
+			categoryName = category.Name
+		}
+		results = append(results, response.PostListItemResponse{
+			ID:                  item.ID,
+			CategoryID:          item.CategoryID,
+			CategoryName:        categoryName,
+			User:                BuildSimpleUserInfo(users[item.UserID]),
+			Title:               item.Title,
+			Summary:             utils.BuildContentSummary(item.ContentType, item.Content, communityPostSummaryLength),
+			Tags:                parseSupportTags(item.TagsJSON),
+			Status:              item.Status,
+			AcceptedCommentID:   item.AcceptedCommentID,
+			CommentCount:        item.CommentCount,
+			ReactionCount:       item.ReactionCount,
+			ViewCount:           item.ViewCount,
+			LastCommentedAt:     formatSupportTime(item.LastCommentedAt),
+			LastCommentUserType: item.LastCommentUserType,
+			LastCommentUserID:   item.LastCommentUserID,
+			CreatedAt:           formatSupportTime(&item.CreatedAt),
+			UpdatedAt:           formatSupportTime(&item.UpdatedAt),
+		})
+	}
+	return results
+}
+
+func BuildComment(item *models.Comment, user *models.User) *response.CommentResponse {
 	if item == nil {
 		return nil
 	}
@@ -140,8 +181,7 @@ func BuildComment(item *models.Comment, authorName string) *response.CommentResp
 		PostID:        item.PostID,
 		ParentID:      item.ParentID,
 		AuthorType:    item.AuthorType,
-		AuthorID:      item.AuthorID,
-		AuthorName:    authorName,
+		User:          BuildSimpleUserInfo(user),
 		ContentType:   contentType,
 		Content:       content,
 		Status:        item.Status,

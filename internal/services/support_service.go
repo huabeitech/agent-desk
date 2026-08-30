@@ -36,6 +36,60 @@ type CommentListResult struct {
 	Paging   *sqls.Paging
 }
 
+// CommunityResponseData contains the shared, batch-loaded relations needed by
+// community response builders. It keeps handlers and builders free of per-row
+// repository lookups.
+type CommunityResponseData struct {
+	Users      map[int64]*models.User
+	Categories map[int64]*models.Category
+}
+
+func mapKeys(values map[int64]struct{}) []int64 {
+	keys := make([]int64, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func (s *supportService) LoadCommunityResponseData(posts []models.Post, comments []models.Comment, replies map[int64][]models.Comment) CommunityResponseData {
+	userIDs := make(map[int64]struct{})
+	categoryIDs := make(map[int64]struct{})
+	for _, post := range posts {
+		if post.UserID > 0 {
+			userIDs[post.UserID] = struct{}{}
+		}
+		if post.CategoryID > 0 {
+			categoryIDs[post.CategoryID] = struct{}{}
+		}
+	}
+	collectCommentUserIDs := func(items []models.Comment) {
+		for _, item := range items {
+			if item.AuthorID > 0 {
+				userIDs[item.AuthorID] = struct{}{}
+			}
+		}
+	}
+	collectCommentUserIDs(comments)
+	for _, items := range replies {
+		collectCommentUserIDs(items)
+	}
+
+	users := repositories.UserRepository.FindSimpleInfoByIDs(sqls.DB(), mapKeys(userIDs))
+	categories := repositories.CategoryRepository.FindByIDs(sqls.DB(), mapKeys(categoryIDs))
+	data := CommunityResponseData{
+		Users:      make(map[int64]*models.User, len(users)),
+		Categories: make(map[int64]*models.Category, len(categories)),
+	}
+	for i := range users {
+		data.Users[users[i].ID] = &users[i]
+	}
+	for i := range categories {
+		data.Categories[categories[i].ID] = &categories[i]
+	}
+	return data
+}
+
 func (s *supportService) RegisterUser(req request.SupportCustomerRegisterRequest, authCfg config.AuthConfig, clientIP, userAgent string) (*response.LoginResponse, error) {
 	name := strings.TrimSpace(req.Name)
 	email := normalizeSupportEmail(req.Email)
