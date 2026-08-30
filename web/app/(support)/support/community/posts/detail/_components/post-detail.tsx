@@ -131,7 +131,6 @@ export function PostDetail() {
                   <div className="truncate text-sm">{authorName}</div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                     <PostStatusBadge status={post.status} />
-                    <span>{post.categoryName || t("supportPublic.common.uncategorized")}</span>
                     <span>{t("supportPublic.posts.updatedAt", { date: formatDateTime(post.updatedAt || post.createdAt) })}</span>
                   </div>
                 </div>
@@ -141,6 +140,18 @@ export function PostDetail() {
             <div className="px-4 py-5 sm:px-6">
               <PostArticleContent id={postArticleId} content={post.content} contentType={post.contentType} />
             </div>
+
+            {post.categoryName ? (
+              <div className="px-4 pb-4 sm:px-6">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-[12.5px] border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-primary"
+                  onClick={() => categoryRoute.changeCategory(post.categoryId)}
+                >
+                  {post.categoryName}
+                </button>
+              </div>
+            ) : null}
 
             <div className="flex border-t border-border">
               <span className="flex min-h-11 flex-1 items-center justify-center gap-1.5 text-sm text-muted-foreground" title={t("supportPublic.posts.views")}>
