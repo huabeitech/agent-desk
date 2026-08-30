@@ -1,7 +1,6 @@
-import { CheckCircle2Icon, SearchIcon } from "lucide-react"
+import { CheckCircle2Icon, CircleHelpIcon, SearchIcon } from "lucide-react"
 import { type ReactNode } from "react"
 
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { useI18n } from "@/i18n/provider"
 import { cn } from "@/lib/utils"
@@ -48,9 +47,27 @@ export function SupportFormField({ label, children }: { label: string; children:
 
 export function PostStatusBadge({ status }: { status: string }) {
   const t = useI18n()
-  if (status === "resolved") return <Badge className="bg-emerald-600 text-white"><CheckCircle2Icon /> {t("supportPublic.status.resolved")}</Badge>
-  if (status === "closed") return <Badge variant="outline">{t("supportPublic.status.closed")}</Badge>
-  return <Badge variant="secondary">{t("supportPublic.status.normal")}</Badge>
+  if (status === "resolved") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] leading-none font-medium text-emerald-700 ring-1 ring-emerald-200">
+        <CheckCircle2Icon className="mr-1 size-3" />
+        {t("supportPublic.status.resolved")}
+      </span>
+    )
+  }
+  if (status === "closed") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] leading-none font-medium text-muted-foreground ring-1 ring-border">
+        {t("supportPublic.status.closed")}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] leading-none font-medium text-amber-700 ring-1 ring-amber-200">
+      <CircleHelpIcon className="mr-1 size-3" />
+      {t("supportPublic.status.normal")}
+    </span>
+  )
 }
 
 export function SupportInfoCard({ label, value }: { label: string; value: string }) {

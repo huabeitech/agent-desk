@@ -129,9 +129,9 @@ export function PostDetail() {
                 </Avatar>
                 <div className="min-w-0 text-xs text-muted-foreground">
                   <div className="truncate text-sm">{authorName}</div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <PostStatusBadge status={post.status} />
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 leading-6">
                     <span>{t("supportPublic.posts.updatedAt", { date: formatDateTime(post.updatedAt || post.createdAt) })}</span>
+                    <PostStatusBadge status={post.status} />
                   </div>
                 </div>
               </div>
