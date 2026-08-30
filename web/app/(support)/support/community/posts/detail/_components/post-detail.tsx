@@ -1,14 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { ChevronDownIcon, EyeIcon, LoaderCircleIcon, MessageCircleMoreIcon, ThumbsUpIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ContentEditor } from "@/components/content-editor"
 import { Button } from "@/components/ui/button"
-import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PublicArticleToc, hasArticleTocHeadings } from "@/app/(support)/support/_components/support-article-toc"
 import { CommunityFrame } from "@/app/(support)/support/_components/community-frame"
 import { PostArticleContent } from "@/app/(support)/support/_components/post-article-content"
@@ -16,9 +15,8 @@ import { ensureSupportLogin, useCommunityCategoryRoute } from "@/app/(support)/s
 import { PostStatusBadge as PostStatusBadge } from "@/app/(support)/support/_components/support-ui"
 import { EmptyState } from "@/components/empty-state"
 import { CommentItem } from "@/app/(support)/support/community/posts/detail/_components/comment-item"
-import { PostMetric } from "@/app/(support)/support/community/posts/_components/post-ui"
 import { useI18n } from "@/i18n/provider"
-import { createComment, fetchComments, fetchPost, postsHref, toggleReaction, type Comment, type Post } from "@/lib/api/support-community"
+import { createComment, fetchComments, fetchPost, toggleReaction, type Comment, type Post } from "@/lib/api/support-community"
 import { readSession } from "@/lib/auth"
 import { formatDateTime, cn } from "@/lib/utils"
 import type { ContentValue } from "@/components/content-editor"
@@ -100,55 +98,54 @@ export function PostDetail() {
     }
   }
   const hasMoreComments = comments.length < commentPage.total
+  const authorName = post?.user.displayName || t("supportPublic.common.user")
+  const authorAvatarText = authorName.trim().slice(0, 1).toUpperCase()
 
   return (
     <CommunityFrame active={post?.categoryId ?? "all"} categoryRoute={categoryRoute} toc={postToc} contentCard={false}>
       {post ? (
         <article className="flex w-full max-w-6xl flex-col gap-6">
-          <section className="rounded-md bg-card px-4 py-4 sm:px-6 sm:py-6 lg:px-8 2xl:px-8">
-            <Breadcrumb className="text-xs">
-              <BreadcrumbList className="gap-y-1">
-                <BreadcrumbItem>
-                  <Link href={postsHref()} className="transition-colors hover:text-foreground">{t("supportPublic.posts.title")}</Link>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{post.categoryName || t("supportPublic.common.uncategorized")}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <header className="mt-6">
-              <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">{post.title}</h1>
+          <section className="overflow-hidden rounded-md bg-card">
+            <header className="border-b border-border px-4 py-3 sm:px-6">
+              <h1 className="text-balance text-[26px] leading-9 font-bold break-words text-foreground">{post.title}</h1>
+              <div className="mt-3 flex min-w-0 items-center gap-2.5">
+                <Avatar className="size-10">
+                  <AvatarImage src={post.user.avatar} alt={authorName} />
+                  <AvatarFallback className="bg-muted text-sm font-medium text-muted-foreground">{authorAvatarText}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 text-xs text-muted-foreground">
+                  <div className="truncate text-sm">{authorName}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <PostStatusBadge status={post.status} />
+                    <span>{post.categoryName || t("supportPublic.common.uncategorized")}</span>
+                    <span>{t("supportPublic.posts.updatedAt", { date: formatDateTime(post.updatedAt || post.createdAt) })}</span>
+                  </div>
+                </div>
+              </div>
             </header>
 
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <PostStatusBadge status={post.status} />
-              <span>{post.categoryName || t("supportPublic.common.uncategorized")}</span>
-              <span className="text-muted-foreground/40">/</span>
-              <span>{t("supportPublic.posts.createdBy", { name: post.user.displayName || t("supportPublic.common.user") })}</span>
-              <span className="text-muted-foreground/40">/</span>
-              <span>{t("supportPublic.posts.updatedAt", { date: formatDateTime(post.updatedAt || post.createdAt) })}</span>
-            </div>
-
-            <div className="mt-8">
+            <div className="px-4 py-5 sm:px-6">
               <PostArticleContent id={postArticleId} content={post.content} contentType={post.contentType} />
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-2">
-              <Button variant="secondary" size="sm" className="rounded-md" onClick={() => void ensureSupportLogin().then(() => toggleReaction({ targetType: "post", targetId: post.id })).then(reload)}>
-                <ThumbsUpIcon /> {post.reactionCount}
+            <div className="flex border-t border-border">
+              <span className="flex min-h-11 flex-1 items-center justify-center gap-1.5 text-sm text-muted-foreground" title={t("supportPublic.posts.views")}>
+                <EyeIcon className="size-[18px]" /> {post.viewCount}
+              </span>
+              <Button variant="ghost" size="sm" className="h-11 flex-1 rounded-none text-muted-foreground hover:text-primary" onClick={() => void ensureSupportLogin().then(() => toggleReaction({ targetType: "post", targetId: post.id })).then(reload)}>
+                <ThumbsUpIcon className="size-[18px]" /> {post.reactionCount}
               </Button>
-              <PostMetric icon={<MessageCircleMoreIcon className="size-3.5" />} value={post.commentCount} label={t("supportPublic.posts.comments")} />
-              <PostMetric icon={<EyeIcon className="size-3.5" />} value={post.viewCount} label={t("supportPublic.posts.views")} />
+              <span className="flex min-h-11 flex-1 items-center justify-center gap-1.5 text-sm text-muted-foreground" title={t("supportPublic.posts.comments")}>
+                <MessageCircleMoreIcon className="size-[18px]" /> {post.commentCount}
+              </span>
             </div>
           </section>
 
-          <section className="rounded-md bg-card px-4 py-6 sm:px-6 sm:py-8 lg:px-8" aria-label={t("supportPublic.posts.comments")}>
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <section className="rounded-md bg-card" aria-label={t("supportPublic.posts.comments")}>
+            <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div>
-                <h2 className="text-lg font-semibold tracking-tight">{t("supportPublic.posts.comments")}</h2>
-                <div className="mt-1 text-sm text-muted-foreground">{t("supportPublic.comment.count", { count: commentPage.total || post.commentCount })}</div>
+                <h2 className="text-base font-medium">{t("supportPublic.posts.comments")}</h2>
+                <div className="mt-0.5 text-xs text-muted-foreground">{t("supportPublic.comment.count", { count: commentPage.total || post.commentCount })}</div>
               </div>
               <div className="inline-flex w-fit gap-1 rounded-md bg-muted p-0.5">
                 {(["default", "latest", "hot"] as const).map((sort) => (
@@ -167,27 +164,7 @@ export function PostDetail() {
                 ))}
               </div>
             </div>
-            {comments.length ? (
-              <div className="divide-y divide-border/70">
-                {comments.map((comment) => (
-                  <CommentItem key={comment.id} comment={comment} post={post} currentUserId={currentUserId} onChanged={reload} />
-                ))}
-              </div>
-            ) : commentsLoading ? (
-              <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                <LoaderCircleIcon className="size-4 animate-spin" />
-                {t("supportPublic.loading.comments")}
-              </div>
-            ) : <EmptyState text={t("supportPublic.empty.noComments")} />}
-            {hasMoreComments ? (
-              <div className="mt-4 flex justify-center">
-                <Button variant="secondary" size="sm" className="rounded-md" disabled={commentsLoading} onClick={() => loadComments(commentPage.page + 1, true)}>
-                  {commentsLoading ? <LoaderCircleIcon className="animate-spin" /> : <ChevronDownIcon />}
-                  {commentsLoading ? t("supportPublic.loading.comments") : t("supportPublic.actions.loadMore")}
-                </Button>
-              </div>
-            ) : null}
-            <section className="mt-6 border-t border-border/70 pt-5" aria-labelledby="support-comment-editor-title">
+            <section className="px-4 py-5 sm:px-6" aria-labelledby="support-comment-editor-title">
               <h2 id="support-comment-editor-title" className="text-base font-semibold">{t("supportPublic.comment.title")}</h2>
               <div className="mt-3 min-w-0">
                 <ContentEditor
@@ -205,6 +182,28 @@ export function PostDetail() {
                   {submitting ? t("supportPublic.actions.publishing") : t("supportPublic.actions.publishComment")}
                 </Button>
               </div>
+            </section>
+            <section className="border-t border-border px-4 py-2 sm:px-6" aria-label={t("supportPublic.posts.comments")}>
+              {comments.length ? (
+                <div className="divide-y divide-border/70">
+                  {comments.map((comment) => (
+                    <CommentItem key={comment.id} comment={comment} post={post} currentUserId={currentUserId} onChanged={reload} />
+                  ))}
+                </div>
+              ) : commentsLoading ? (
+                <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                  <LoaderCircleIcon className="size-4 animate-spin" />
+                  {t("supportPublic.loading.comments")}
+                </div>
+              ) : <EmptyState text={t("supportPublic.empty.noComments")} />}
+              {hasMoreComments ? (
+                <div className="my-4 flex justify-center">
+                  <Button variant="secondary" size="sm" className="rounded-md" disabled={commentsLoading} onClick={() => loadComments(commentPage.page + 1, true)}>
+                    {commentsLoading ? <LoaderCircleIcon className="animate-spin" /> : <ChevronDownIcon />}
+                    {commentsLoading ? t("supportPublic.loading.comments") : t("supportPublic.actions.loadMore")}
+                  </Button>
+                </div>
+              ) : null}
             </section>
           </section>
         </article>
