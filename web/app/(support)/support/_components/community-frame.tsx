@@ -34,6 +34,7 @@ export function CommunityFrame({
     <SupportPageLayout
       section="community"
       startAsideBreakpoint="xl"
+      startAsideWidth="16rem"
       contentClassName="py-6 sm:py-8"
       startAside={(
         <CommunityCategoryNav
