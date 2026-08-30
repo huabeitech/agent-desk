@@ -31,18 +31,19 @@ type RoleResponse struct {
 }
 
 type UserResponse struct {
-	ID          int64          `json:"id"`
-	Username    string         `json:"username"`
-	Nickname    string         `json:"nickname"`
-	Avatar      string         `json:"avatar"`
-	Mobile      string         `json:"mobile,omitempty"`
-	Email       string         `json:"email,omitempty"`
-	UserType    enums.UserType `json:"userType"`
-	Status      enums.Status   `json:"status"`
-	LastLoginAt string         `json:"lastLoginAt,omitempty"`
-	LastLoginIP string         `json:"lastLoginIp,omitempty"`
-	Roles       []RoleResponse `json:"roles,omitempty"`
-	Permissions []string       `json:"permissions,omitempty"`
+	ID            int64          `json:"id"`
+	Username      string         `json:"username"`
+	Nickname      string         `json:"nickname"`
+	Avatar        string         `json:"avatar"`
+	AvatarAssetID string         `json:"avatarAssetId,omitempty"`
+	Mobile        string         `json:"mobile,omitempty"`
+	Email         string         `json:"email,omitempty"`
+	UserType      enums.UserType `json:"userType"`
+	Status        enums.Status   `json:"status"`
+	LastLoginAt   string         `json:"lastLoginAt,omitempty"`
+	LastLoginIP   string         `json:"lastLoginIp,omitempty"`
+	Roles         []RoleResponse `json:"roles,omitempty"`
+	Permissions   []string       `json:"permissions,omitempty"`
 }
 
 // CreateUserResultResponse 创建用户成功响应；password 仅在本次响应中返回一次。

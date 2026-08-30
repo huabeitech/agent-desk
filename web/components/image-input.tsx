@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import { UploadIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -16,6 +16,7 @@ export type ImageInputProps = {
   accept?: string
   maxSize?: number
   prefix?: string
+  previewValue?: string
   placeholder?: string
   className?: string
   upload?: (file: File, prefix?: string) => Promise<{ assetId?: string; url: string }>
@@ -28,14 +29,20 @@ export function ImageInput({
   accept = "image/*",
   maxSize = 5 * 1024 * 1024,
   prefix,
+  previewValue,
   placeholder,
   className,
   upload = uploadAsset,
 }: ImageInputProps) {
   const t = useI18n()
   const [uploading, setUploading] = useState(false)
+  const [uploadedPreview, setUploadedPreview] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const resolvedPlaceholder = placeholder ?? t("upload.imagePlaceholder")
+
+  useEffect(() => {
+    setUploadedPreview("")
+  }, [previewValue])
 
   function handleClick() {
     if (disabled || uploading) {
@@ -46,6 +53,7 @@ export function ImageInput({
 
   function handleClear(event: React.MouseEvent) {
     event.stopPropagation()
+    setUploadedPreview("")
     onChange?.("")
   }
 
@@ -69,6 +77,7 @@ export function ImageInput({
     setUploading(true)
     try {
       const result = await upload(file, prefix)
+      setUploadedPreview(result.url)
       onChange?.(result.assetId || result.url)
       toast.success(t("upload.imageUploaded"))
     } catch (error) {
@@ -115,7 +124,7 @@ export function ImageInput({
         {value ? (
           <>
             <Image
-              src={resolveImagePreviewURL(value)}
+              src={uploadedPreview || previewValue || resolveImagePreviewURL(value)}
               alt={t("upload.uploadedImage")}
               fill
               sizes="96px"
@@ -156,5 +165,5 @@ function resolveImagePreviewURL(value: string) {
   if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
     return value
   }
-  return `/api/asset/${encodeURIComponent(value)}`
+  return ""
 }

@@ -8,6 +8,7 @@ import (
 	"agent-desk/internal/pkg/errorsx"
 	"agent-desk/internal/pkg/httpx"
 	"agent-desk/internal/pkg/httpx/params"
+	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/services"
 	"log/slog"
 	"net/http"
@@ -211,8 +212,34 @@ func UploadProfileAvatar(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, builders.BuildAsset(item))
 }
 
-func AssetGetByAssetID(ctx *gin.Context) {
-	accessURL, err := services.AssetService.GetSignedURLByAssetID(ctx.Param("assetId"))
+func AvatarUserGet(ctx *gin.Context) {
+	userID, ok := httpx.GetPathInt64(ctx, "userId")
+	if !ok {
+		return
+	}
+	user := services.UserService.Get(userID)
+	if user == nil {
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	redirectAvatarAsset(ctx, utils.AvatarAssetID(user.Avatar))
+}
+
+func AvatarAgentGet(ctx *gin.Context) {
+	profileID, ok := httpx.GetPathInt64(ctx, "agentProfileId")
+	if !ok {
+		return
+	}
+	profile := services.AgentProfileService.Get(profileID)
+	if profile == nil {
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	redirectAvatarAsset(ctx, utils.AvatarAssetID(profile.Avatar))
+}
+
+func redirectAvatarAsset(ctx *gin.Context, assetID string) {
+	accessURL, err := services.AssetService.GetSignedURLByAssetID(assetID)
 	if err != nil || accessURL == "" {
 		ctx.AbortWithStatus(http.StatusNotFound)
 		return

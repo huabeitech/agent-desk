@@ -119,7 +119,7 @@ func (s *userService) CreateUser(req request.CreateUserRequest, operator *dto.Au
 		Username:     username,
 		Nickname:     strings.TrimSpace(req.Nickname),
 		Password:     string(passwordHash),
-		Avatar:       utils.NormalizeAvatarValue(req.Avatar),
+		Avatar:       strings.TrimSpace(req.Avatar),
 		Mobile:       mobile,
 		Email:        email,
 		UserType:     enums.UserTypeEmployee,
@@ -165,7 +165,7 @@ func (s *userService) UpdateUser(req request.UpdateUserRequest, operator *dto.Au
 
 	return s.Updates(req.ID, map[string]any{
 		"nickname":         strings.TrimSpace(req.Nickname),
-		"avatar":           utils.NormalizeAvatarValue(req.Avatar),
+		"avatar":           strings.TrimSpace(req.Avatar),
 		"mobile":           mobile,
 		"email":            email,
 		"remark":           strings.TrimSpace(req.Remark),

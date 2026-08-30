@@ -9,20 +9,20 @@ func TestBuildAvatarURL(t *testing.T) {
 	}{
 		{value: "", want: ""},
 		{value: "https://example.com/avatar.png", want: "https://example.com/avatar.png"},
-		{value: "asset_1", want: "/api/asset/asset_1"},
+		{value: "asset_1", want: "/api/avatar/user/1"},
 	}
 	for _, tt := range tests {
-		if got := BuildAvatarURL(tt.value); got != tt.want {
+		if got := BuildAvatarURL(tt.value, "/api/avatar/user/1"); got != tt.want {
 			t.Fatalf("BuildAvatarURL(%q) = %q, want %q", tt.value, got, tt.want)
 		}
 	}
 }
 
-func TestNormalizeAvatarValue(t *testing.T) {
-	if got := NormalizeAvatarValue("/api/asset/asset_1"); got != "asset_1" {
-		t.Fatalf("NormalizeAvatarValue() = %q, want asset_1", got)
+func TestAvatarAssetID(t *testing.T) {
+	if got := AvatarAssetID("asset_1"); got != "asset_1" {
+		t.Fatalf("AvatarAssetID() = %q, want asset_1", got)
 	}
-	if got := NormalizeAvatarValue("https://example.com/avatar.png"); got != "https://example.com/avatar.png" {
-		t.Fatalf("NormalizeAvatarValue() = %q, want external URL", got)
+	if got := AvatarAssetID("https://example.com/avatar.png"); got != "" {
+		t.Fatalf("AvatarAssetID() = %q, want empty string", got)
 	}
 }

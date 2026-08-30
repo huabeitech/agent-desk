@@ -1,28 +1,19 @@
 package utils
 
-import (
-	"net/url"
-	"strings"
-)
+import "strings"
 
-const avatarAssetPathPrefix = "/api/asset/"
-
-func BuildAvatarURL(value string) string {
+func BuildAvatarURL(value, assetURL string) string {
 	value = strings.TrimSpace(value)
 	if value == "" || strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
 		return value
 	}
-	return avatarAssetPathPrefix + url.PathEscape(value)
+	return assetURL
 }
 
-func NormalizeAvatarValue(value string) string {
+func AvatarAssetID(value string) string {
 	value = strings.TrimSpace(value)
-	if !strings.HasPrefix(value, avatarAssetPathPrefix) {
-		return value
+	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
+		return ""
 	}
-	assetID, err := url.PathUnescape(strings.TrimPrefix(value, avatarAssetPathPrefix))
-	if err != nil {
-		return value
-	}
-	return strings.TrimSpace(assetID)
+	return value
 }

@@ -25,6 +25,7 @@ export type AdminUser = {
   username: string
   nickname: string
   avatar: string
+  avatarAssetId?: string
   mobile?: string
   email?: string
   userType: string
@@ -781,6 +782,7 @@ export type AdminAgentProfile = {
   agentCode: string
   displayName: string
   avatar: string
+  avatarAssetId?: string
   serviceStatus: number
   maxConcurrentCount: number
   priorityLevel: number

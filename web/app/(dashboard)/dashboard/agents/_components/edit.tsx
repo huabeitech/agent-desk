@@ -122,7 +122,7 @@ function buildForm(item: AdminAgentProfile | null): EditForm {
     teamId: String(item.teamId),
     agentCode: item.agentCode,
     displayName: item.displayName,
-    avatar: item.avatar || "",
+    avatar: item.avatarAssetId || item.avatar || "",
     serviceStatus: String(item.serviceStatus) as EditForm["serviceStatus"],
     maxConcurrentCount: String(item.maxConcurrentCount),
     priorityLevel: String(item.priorityLevel),
@@ -208,6 +208,7 @@ function AgentEditDialogBody({
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userSelectOpen, setUserSelectOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState("");
   const userOptions = users.map((user) => ({
     value: String(user.id),
     label: `${user.nickname || user.username} (${user.username})`,
@@ -243,12 +244,14 @@ function AgentEditDialogBody({
   useEffect(() => {
     async function loadDetail() {
       if (!itemId) {
+        setAvatarPreview("");
         reset(buildFormWithDefaultTeam(null, defaultTeamId));
         return;
       }
       setLoading(true);
       try {
         const data = await fetchAgentProfile(itemId);
+        setAvatarPreview(data.avatar || "");
         reset(buildForm(data));
       } catch (error) {
         toast.error(error instanceof Error ? error.message : t("agentProfile.loadDetailFailed"));
@@ -405,6 +408,7 @@ function AgentEditDialogBody({
                   render={({ field }) => (
                     <ImageInput
                       value={field.value}
+                      previewValue={avatarPreview}
                       onChange={field.onChange}
                       disabled={saving}
                       prefix="avatar"

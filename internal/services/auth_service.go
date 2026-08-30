@@ -16,6 +16,7 @@ import (
 	"net/mail"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -205,14 +206,15 @@ func (s *authService) CurrentProfile(ctx *gin.Context) (*response.LoginResponse,
 
 	return &response.LoginResponse{
 		User: &response.AuthUserResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Nickname: user.Nickname,
-			Avatar:   utils.BuildAvatarURL(user.Avatar),
-			Email:    derefString(user.Email),
-			UserType: user.UserType,
-			Status:   user.Status,
-			Roles:    principal.Roles,
+			ID:            user.ID,
+			Username:      user.Username,
+			Nickname:      user.Nickname,
+			Avatar:        utils.BuildAvatarURL(user.Avatar, "/api/avatar/user/"+strconv.FormatInt(user.ID, 10)),
+			AvatarAssetID: utils.AvatarAssetID(user.Avatar),
+			Email:         derefString(user.Email),
+			UserType:      user.UserType,
+			Status:        user.Status,
+			Roles:         principal.Roles,
 		},
 		Permissions: principal.Permissions,
 		Roles:       principal.Roles,
@@ -236,7 +238,7 @@ func (s *authService) UpdateProfile(ctx *gin.Context, req request.UpdateProfileR
 	if len([]rune(nickname)) > 100 {
 		return nil, errorsx.InvalidParamI18n("error.profile.nicknameTooLong")
 	}
-	avatar := utils.NormalizeAvatarValue(req.Avatar)
+	avatar := strings.TrimSpace(req.Avatar)
 	if len(avatar) > 255 {
 		return nil, errorsx.InvalidParamI18n("error.profile.avatarTooLong")
 	}
@@ -308,14 +310,15 @@ func (s *authService) issueTokens(ctx *sqls.TxContext, user *models.User, client
 		AccessToken: accessToken,
 		ExpiresAt:   now.Add(tokenTTL).Format(time.DateTime),
 		User: &response.AuthUserResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Nickname: user.Nickname,
-			Avatar:   utils.BuildAvatarURL(user.Avatar),
-			Email:    derefString(user.Email),
-			UserType: user.UserType,
-			Status:   user.Status,
-			Roles:    roles,
+			ID:            user.ID,
+			Username:      user.Username,
+			Nickname:      user.Nickname,
+			Avatar:        utils.BuildAvatarURL(user.Avatar, "/api/avatar/user/"+strconv.FormatInt(user.ID, 10)),
+			AvatarAssetID: utils.AvatarAssetID(user.Avatar),
+			Email:         derefString(user.Email),
+			UserType:      user.UserType,
+			Status:        user.Status,
+			Roles:         roles,
 		},
 		Permissions: permissions,
 		Roles:       roles,

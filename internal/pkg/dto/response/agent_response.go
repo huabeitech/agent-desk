@@ -12,6 +12,7 @@ type AgentProfileResponse struct {
 	AgentCode             string              `json:"agentCode"`
 	DisplayName           string              `json:"displayName"`
 	Avatar                string              `json:"avatar"`
+	AvatarAssetID         string              `json:"avatarAssetId,omitempty"`
 	ServiceStatus         enums.ServiceStatus `json:"serviceStatus"`
 	MaxConcurrentCount    int                 `json:"maxConcurrentCount"`
 	PriorityLevel         int                 `json:"priorityLevel"`

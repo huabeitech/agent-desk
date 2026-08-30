@@ -180,7 +180,7 @@ func (s *agentProfileService) buildProfileModel(id int64, req request.CreateAgen
 		TeamID:                req.TeamID,
 		AgentCode:             req.AgentCode,
 		DisplayName:           req.DisplayName,
-		Avatar:                utils.NormalizeAvatarValue(req.Avatar),
+		Avatar:                strings.TrimSpace(req.Avatar),
 		ServiceStatus:         req.ServiceStatus,
 		MaxConcurrentCount:    req.MaxConcurrentCount,
 		PriorityLevel:         req.PriorityLevel,

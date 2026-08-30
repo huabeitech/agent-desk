@@ -5,6 +5,7 @@ import (
 	"agent-desk/internal/pkg/dto/response"
 	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/services"
+	"strconv"
 )
 
 type UserBuildOptions struct {
@@ -25,14 +26,15 @@ func BuildUserResponse(item *models.User, options UserBuildOptions) *response.Us
 		return nil
 	}
 	ret := &response.UserResponse{
-		ID:          item.ID,
-		Username:    item.Username,
-		Nickname:    item.Nickname,
-		Avatar:      utils.BuildAvatarURL(item.Avatar),
-		UserType:    item.UserType,
-		Status:      item.Status,
-		LastLoginAt: utils.FormatTimePtr(item.LastLoginAt),
-		LastLoginIP: item.LastLoginIP,
+		ID:            item.ID,
+		Username:      item.Username,
+		Nickname:      item.Nickname,
+		Avatar:        utils.BuildAvatarURL(item.Avatar, "/api/avatar/user/"+strconv.FormatInt(item.ID, 10)),
+		AvatarAssetID: utils.AvatarAssetID(item.Avatar),
+		UserType:      item.UserType,
+		Status:        item.Status,
+		LastLoginAt:   utils.FormatTimePtr(item.LastLoginAt),
+		LastLoginIP:   item.LastLoginIP,
 	}
 
 	if item.Mobile != nil {
