@@ -42,7 +42,11 @@ export function CommunityPostList({
         error: t("supportPublic.empty.postsFailed"),
       }}
       loadPage={loadPosts}
-      renderItems={(items) => items.map((item) => <PostCard key={item.id} item={item} compact />)}
+      renderItems={(items) => (
+        <ul className="divide-y divide-border">
+          {items.map((item) => <PostCard key={item.id} item={item} />)}
+        </ul>
+      )}
       renderEmpty={() => <SupportEmptyState text={emptyText} />}
     />
   )
