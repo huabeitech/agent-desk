@@ -69,6 +69,6 @@
     "sass": "^1.98.0",
     "tailwindcss": "^4",
     "terser": "^5.46.2",
-    "typescript": "^5"
+    "typescript": "^6.0.3"
   }
 }

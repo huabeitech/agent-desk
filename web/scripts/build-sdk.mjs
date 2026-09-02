@@ -16,7 +16,7 @@ const compiled = ts.transpileModule(sourceCode, {
   compilerOptions: {
     target: ts.ScriptTarget.ES2017,
     module: ts.ModuleKind.ESNext,
-    importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
+    importsNotUsedAsValues: ts.ImportsNotUsedAsValues ? ts.ImportsNotUsedAsValues.Remove : undefined,
     removeComments: true,
   },
   fileName: source,
