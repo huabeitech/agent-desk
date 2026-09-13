@@ -435,3 +435,8 @@ func registerThirdZaloRoutes(group *gin.RouterGroup) {
 	group.POST("/webhook", third.ZaloPostWebhook)
 	group.POST("/webhook/:channel_id", third.ZaloPostWebhook)
 }
+
+func registerThirdSlackRoutes(group *gin.RouterGroup) {
+	group.POST("/webhook", third.SlackPostWebhook)
+	group.POST("/webhook/:channel_id", third.SlackPostWebhook)
+}
