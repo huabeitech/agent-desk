@@ -70,18 +70,28 @@ func TestResolveReplyTimeout(t *testing.T) {
 	service := newAIReplyService()
 	aiAgent := newAIAgentFixture()
 
-	if got := service.resolveReplyTimeout(aiAgent); got != 180*time.Second {
+	if got := service.resolveReplyTimeout(nil, aiAgent); got != 120*time.Second {
 		t.Fatalf("expected default timeout, got %v", got)
 	}
 
 	aiAgent.ReplyTimeoutSeconds = 30
-	if got := service.resolveReplyTimeout(aiAgent); got != 30*time.Second {
-		t.Fatalf("expected exact timeout, got %v", got)
+	if got := service.resolveReplyTimeout(nil, aiAgent); got != 30*time.Second {
+		t.Fatalf("expected agent timeout, got %v", got)
 	}
 
 	aiAgent.ReplyTimeoutSeconds = 999
-	if got := service.resolveReplyTimeout(aiAgent); got != 600*time.Second {
+	if got := service.resolveReplyTimeout(nil, aiAgent); got != 600*time.Second {
 		t.Fatalf("expected clamped timeout, got %v", got)
+	}
+
+	// 渠道配置优先于智能体配置
+	channel := &models.Channel{AIReplyTimeoutSeconds: 45}
+	if got := service.resolveReplyTimeout(channel, aiAgent); got != 45*time.Second {
+		t.Fatalf("expected channel timeout to take precedence, got %v", got)
+	}
+	channel.AIReplyTimeoutSeconds = 0
+	if got := service.resolveReplyTimeout(channel, models.AIAgent{}); got != 120*time.Second {
+		t.Fatalf("expected default timeout when channel and agent unset, got %v", got)
 	}
 }
 

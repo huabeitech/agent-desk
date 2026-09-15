@@ -33,6 +33,21 @@ type WechatMPChannelConfig struct {
 	UserTokenSecret string `json:"userTokenSecret,omitempty"`
 }
 
+// WechatMiniProgramChannelConfig 微信小程序客服消息渠道配置。
+//
+//	注意与 WechatMPChannelConfig（微信公众号）区分。
+type WechatMiniProgramChannelConfig struct {
+	Title              string `json:"title"`
+	Subtitle           string `json:"subtitle"`
+	ThemeColor         string `json:"themeColor"`
+	UserTokenSecret    string `json:"userTokenSecret,omitempty"`
+	AppID              string `json:"appId"`
+	Token              string `json:"token"`
+	EncodingAESKey     string `json:"encodingAESKey"`
+	TokenServiceURL    string `json:"tokenServiceUrl"`
+	TokenServiceSecret string `json:"tokenServiceSecret,omitempty"`
+}
+
 type TelegramChannelConfig struct {
 	BotToken       string `json:"botToken"`
 	BotUsername    string `json:"botUsername,omitempty"`

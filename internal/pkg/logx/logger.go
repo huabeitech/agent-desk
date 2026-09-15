@@ -4,28 +4,45 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	"agent-desk/internal/models"
 )
 
 // Config 定义日志初始化参数。
 type Config struct {
-	Level     string `yaml:"level"`
-	Format    string `yaml:"format"`
-	AddSource bool   `yaml:"addSource"`
+	Level         string `yaml:"level"`
+	Format        string `yaml:"format"`
+	AddSource     bool   `yaml:"addSource"`
+	EnableDBSink bool   `yaml:"enableDBSink"`
 }
 
 // Init 初始化全局 slog logger，并设置为默认 logger。
+// 当 EnableDBSink 为 true 时，创建复合 handler（stdout + dbSink），
+// dbSink 的 DB 引用在 AttachDB 调用前为 nil，不会写库。
 func Init(cfg Config) *slog.Logger {
 	level := parseLevel(cfg.Level)
 	opts := &slog.HandlerOptions{
 		Level:     level,
-		AddSource: cfg.AddSource,
+		AddSource: true, // 强制开启，以便 DB sink 记录 source
 	}
 
-	var handler slog.Handler
+	var stdoutHandler slog.Handler
 	if strings.EqualFold(cfg.Format, "json") {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
+		stdoutHandler = slog.NewJSONHandler(os.Stdout, opts)
 	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
+		stdoutHandler = slog.NewTextHandler(os.Stdout, opts)
+	}
+
+	var handler slog.Handler = stdoutHandler
+
+	if cfg.EnableDBSink {
+		sink = &dbSink{
+			inner: stdoutHandler,
+			ch:    make(chan models.SystemLog, dbSinkChannelCapacity),
+			stop:  make(chan struct{}),
+			done:  make(chan struct{}),
+		}
+		handler = sink
 	}
 
 	logger := slog.New(handler)

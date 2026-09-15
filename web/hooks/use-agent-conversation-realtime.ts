@@ -98,7 +98,8 @@ export function useAgentConversationRealtime() {
             return
           }
 
-          if (eventType === "message.created") {
+          // message.updated 为 AI 占位回复被正式回复替换，合并语义一致（按 ID 覆盖）
+          if (eventType === "message.created" || eventType === "message.updated") {
             const message = normalizeRealtimeMessage<AgentMessage>(payload)
             if (!message) {
               void store.resyncRealtimeData(conversationId).catch((error) => {

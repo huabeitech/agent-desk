@@ -465,6 +465,9 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 	if req.AIAgentRolloutPercent < 1 || req.AIAgentRolloutPercent > 100 {
 		return nil, errorsx.InvalidParam("channel ai agent rollout percent must be between 1 and 100")
 	}
+	if req.AIReplyTimeoutSeconds < 0 || req.AIReplyTimeoutSeconds > models.MaxAIReplyTimeoutSeconds {
+		return nil, errorsx.InvalidParamI18n("error.e0348")
+	}
 	aiAgent := AIAgentService.Get(req.AIAgentID)
 	if aiAgent == nil || aiAgent.Status != enums.StatusOk {
 		return nil, errorsx.InvalidParamI18n("error.e0004")
@@ -603,6 +606,9 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 		ChannelID:             channelID,
 		AIAgentID:             req.AIAgentID,
 		AIAgentRolloutPercent: req.AIAgentRolloutPercent,
+		AIReplyPlaceholder:    strings.TrimSpace(req.AIReplyPlaceholder),
+		AIReplyTimeoutSeconds: req.AIReplyTimeoutSeconds,
+		AIReplyTimeoutNotice:  strings.TrimSpace(req.AIReplyTimeoutNotice),
 		Name:                  name,
 		ConfigJSON:            configJSON,
 		Status:                status,

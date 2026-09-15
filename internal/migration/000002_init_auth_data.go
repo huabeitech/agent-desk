@@ -205,6 +205,7 @@ func ensureBootstrapAdmin(tx *gorm.DB, superAdminRole *models.Role) error {
 			Username: username,
 			Nickname: nickname,
 			Password: string(hashedPassword),
+			UserType: enums.UserTypeEmployee,
 			Status:   enums.StatusOk,
 			Remark:   "bootstrap super admin",
 			AuditFields: models.AuditFields{
@@ -223,6 +224,7 @@ func ensureBootstrapAdmin(tx *gorm.DB, superAdminRole *models.Role) error {
 	} else {
 		if err := repositories.UserRepository.Updates(tx, user.ID, map[string]any{
 			"nickname":         nickname,
+			"user_type":        enums.UserTypeEmployee,
 			"status":           enums.StatusOk,
 			"update_user_id":   constants.SystemAuditUserID,
 			"update_user_name": constants.SystemAuditUserName,

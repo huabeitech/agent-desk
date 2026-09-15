@@ -31,6 +31,7 @@ import {
   resetChannelUserTokenSecret,
 } from "@/lib/api/admin"
 import { useI18n } from "@/i18n/provider"
+import { WxWorkReadTestButton } from "./read-test-button"
 
 type ChannelFormDialogProps = {
   open: boolean
@@ -90,6 +91,13 @@ function createSchema(t: Translate) {
       channelType: z.enum(["web", "wechat_mp", "wxwork_kf", "telegram", "zalo_oa"], t("channel.typeRequired")),
       aiAgentId: z.string().trim().regex(/^\d+$/, t("channel.agentRequired")),
 		aiAgentRolloutPercent: z.coerce.number().int().min(1).max(100),
+      aiReplyPlaceholder: z.string().trim().max(255, t("channel.aiReplyPlaceholderTooLong")),
+      aiReplyTimeoutSeconds: z.coerce
+        .number()
+        .int(t("channel.aiReplyTimeoutInvalid"))
+        .min(0, t("channel.aiReplyTimeoutInvalid"))
+        .max(600, t("channel.aiReplyTimeoutInvalid")),
+      aiReplyTimeoutNotice: z.string().trim().max(500, t("channel.aiReplyTimeoutNoticeTooLong")),
       name: z.string().trim().min(1, t("channel.nameRequired")),
       openKfId: z.string().trim(),
       botToken: z.string().trim(),
@@ -136,6 +144,9 @@ type EditForm = {
   channelType: "web" | "wechat_mp" | "wxwork_kf" | "telegram" | "zalo_oa"
   aiAgentId: string
 	aiAgentRolloutPercent: number
+  aiReplyPlaceholder: string
+  aiReplyTimeoutSeconds: number
+  aiReplyTimeoutNotice: string
   name: string
   openKfId: string
   botToken: string
@@ -160,6 +171,9 @@ function createEmptyForm(t: Translate): EditForm {
     channelType: "web",
     aiAgentId: "",
 		aiAgentRolloutPercent: 100,
+    aiReplyPlaceholder: "",
+    aiReplyTimeoutSeconds: 0,
+    aiReplyTimeoutNotice: "",
     name: "",
     openKfId: "",
     botToken: "",
@@ -299,6 +313,9 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
               : "web",
     aiAgentId: item.aiAgentId > 0 ? String(item.aiAgentId) : "",
 		aiAgentRolloutPercent: item.aiAgentRolloutPercent || 100,
+    aiReplyPlaceholder: item.aiReplyPlaceholder || "",
+    aiReplyTimeoutSeconds: item.aiReplyTimeoutSeconds || 0,
+    aiReplyTimeoutNotice: item.aiReplyTimeoutNotice || "",
     name: item.name,
     openKfId: parseOpenKfId(item.configJson),
     botToken: telegramConfig?.botToken ?? "",
@@ -359,6 +376,9 @@ function buildPayload(form: EditForm, status: number, t: Translate): CreateAdmin
     channelType,
     aiAgentId: Number(form.aiAgentId),
 		aiAgentRolloutPercent: form.aiAgentRolloutPercent,
+    aiReplyPlaceholder: form.aiReplyPlaceholder.trim(),
+    aiReplyTimeoutSeconds: Number.isFinite(form.aiReplyTimeoutSeconds) ? form.aiReplyTimeoutSeconds : 0,
+    aiReplyTimeoutNotice: form.aiReplyTimeoutNotice.trim(),
     name: form.name.trim(),
     configJson,
     status,
@@ -837,6 +857,7 @@ function ChannelFormBody({
                     )}
                   />
                   <FieldError errors={[errors.openKfId]} />
+                  <WxWorkReadTestButton channelId={channelDetail?.id ?? itemId} />
                 </FieldContent>
               </Field>
             ) : null}
@@ -965,6 +986,56 @@ function ChannelFormBody({
                 )}
               </>
             ) : null}
+          </div>
+
+          <div className="space-y-4 rounded-md border p-4">
+            <div>
+              <div className="text-sm font-medium">{t("channel.aiReplySectionTitle")}</div>
+              <div className="text-xs text-muted-foreground">{t("channel.aiReplySectionDescription")}</div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field data-invalid={!!errors.aiReplyPlaceholder}>
+                <FieldLabel htmlFor="channel-ai-reply-placeholder">{t("channel.aiReplyPlaceholder")}</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="channel-ai-reply-placeholder"
+                    placeholder={t("channel.aiReplyPlaceholderPlaceholder")}
+                    {...register("aiReplyPlaceholder")}
+                  />
+                  <FieldError errors={[errors.aiReplyPlaceholder]} />
+                </FieldContent>
+              </Field>
+
+              <Field data-invalid={!!errors.aiReplyTimeoutSeconds}>
+                <FieldLabel htmlFor="channel-ai-reply-timeout">{t("channel.aiReplyTimeoutSeconds")}</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="channel-ai-reply-timeout"
+                    type="number"
+                    min={0}
+                    max={600}
+                    step={1}
+                    {...register("aiReplyTimeoutSeconds")}
+                  />
+                  <div className="text-xs text-muted-foreground">{t("channel.aiReplyTimeoutSecondsHint")}</div>
+                  <FieldError errors={[errors.aiReplyTimeoutSeconds]} />
+                </FieldContent>
+              </Field>
+            </div>
+
+            <Field data-invalid={!!errors.aiReplyTimeoutNotice}>
+              <FieldLabel htmlFor="channel-ai-reply-timeout-notice">{t("channel.aiReplyTimeoutNotice")}</FieldLabel>
+              <FieldContent>
+                <Textarea
+                  id="channel-ai-reply-timeout-notice"
+                  rows={2}
+                  placeholder={t("channel.aiReplyTimeoutNoticePlaceholder")}
+                  {...register("aiReplyTimeoutNotice")}
+                />
+                <FieldError errors={[errors.aiReplyTimeoutNotice]} />
+              </FieldContent>
+            </Field>
           </div>
 
           <Field data-invalid={!!errors.remark}>

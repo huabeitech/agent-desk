@@ -47,6 +47,10 @@ func BuildConversationWithLocale(item *models.Conversation, locale string) respo
 	if identity := services.ConversationService.GetConversationExternalIdentity(item); identity != nil {
 		ret.CustomerOnline = services.WsService.IsGuestOnline(identity.ExternalID)
 	}
+	if channel := services.ChannelService.Get(item.ChannelID); channel != nil {
+		ret.ChannelType = channel.ChannelType
+		ret.ChannelName = channel.Name
+	}
 	if item.CurrentAssigneeID > 0 {
 		if user := services.UserService.Get(item.CurrentAssigneeID); user != nil {
 			ret.CurrentAssigneeName = user.Nickname

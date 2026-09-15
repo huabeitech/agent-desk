@@ -11,6 +11,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/mlogclub/simple/sqls"
+
 	_ "agent-desk/internal/services/event_handlers"
 )
 
@@ -24,9 +26,10 @@ func Init(configPath string) error {
 	i18nx.SetDefaultLocale(cfg.LanguageOrDefault())
 
 	logx.Init(logx.Config{
-		Level:     cfg.Logger.Level,
-		Format:    cfg.Logger.Format,
-		AddSource: cfg.Logger.AddSource,
+		Level:         cfg.Logger.Level,
+		Format:        cfg.Logger.Format,
+		AddSource:     cfg.Logger.AddSource,
+		EnableDBSink: true,
 	})
 
 	if _, err := InitDB(cfg.DB); err != nil {
@@ -37,6 +40,7 @@ func Init(configPath string) error {
 		slog.Error("init migrations failed", "error", err)
 		return err
 	}
+	logx.AttachDB(sqls.DB())
 	if err := vectordb.Init(&cfg.VectorDB); err != nil {
 		slog.Error("init vector db failed", "error", err)
 		return err

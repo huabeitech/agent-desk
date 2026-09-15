@@ -254,12 +254,19 @@ func (s *channelMessageOutboxService) ListPending(channelType string, limit int)
 	if limit <= 0 {
 		limit = 20
 	}
+	// 只取"现在就可以尝试发送"的记录，保证每批取出的记录都会被真正尝试、投递循环必然收敛：
+	//   pending：无重试计划限制（新入队或人工重试后 next_retry_at 为空）；
+	//   failed：必须存在重试计划且已到期。达到最大重试次数（next_retry_at 为空）的记录
+	//   停止自动重试，等待管理端人工处置；退避窗口内的记录不占用批次。
+	now := time.Now()
 	cnd := sqls.NewCnd().
 		Eq("channel_type", strings.TrimSpace(channelType)).
-		In("send_status", []string{
-			string(enums.ChannelMessageOutboxStatusPending),
-			string(enums.ChannelMessageOutboxStatusFailed),
-		}).
+		Where(
+			"((send_status = ? AND (next_retry_at IS NULL OR next_retry_at <= ?)) "+
+				"OR (send_status = ? AND next_retry_at IS NOT NULL AND next_retry_at <= ?))",
+			string(enums.ChannelMessageOutboxStatusPending), now,
+			string(enums.ChannelMessageOutboxStatusFailed), now,
+		).
 		Asc("id").
 		Limit(limit)
 	return s.Find(cnd)
