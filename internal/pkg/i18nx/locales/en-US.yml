@@ -377,6 +377,8 @@ error.wxwork.userIDTaken: "The WeCom user ID is already used as a system usernam
 error.wxwork.mobileTaken: "The WeCom mobile number is already used by a system user."
 error.wxwork.emailTaken: "The WeCom email address is already used by a system user."
 error.wxwork.configIncomplete: "WeCom is not enabled or its configuration is incomplete."
+error.wxwork.appNotConfigured: "The WeCom app is not configured or enabled, agentId: %s"
+error.wxwork.agentIdRequired: "Please select a WeCom app (agentId)."
 error.customerSession.secretMissing: "Customer session secret is not configured."
 error.conversation.createFailed: "Failed to create conversation."
 error.conversation.tagNotFound: "Tag not found."

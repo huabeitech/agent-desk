@@ -224,6 +224,7 @@ func registerDashboardChannelRoutes(group *gin.RouterGroup) {
 	group.POST("/update", dashboard.ChannelPostUpdate)
 	group.POST("/update_status", dashboard.ChannelPostUpdate_status)
 	group.Any("/wxwork/kf/accounts", dashboard.ChannelAnyWxworkKfAccounts)
+	group.GET("/wxwork/api_apps", dashboard.ChannelAnyWxworkApiApps)
 	group.POST("/wxwork/kf/test_read_messages", dashboard.ChannelPostWxworkKfTest_read_messages)
 	group.Any("/wxwork/outbox/failed/list", dashboard.ChannelAnyWxworkOutboxFailedList)
 	group.POST("/wxwork/outbox/retry", dashboard.ChannelPostWxworkOutboxRetry)

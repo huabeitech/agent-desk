@@ -963,8 +963,16 @@ export function fetchChannel(id: number) {
   return request<AdminChannel>(`/api/dashboard/channel/${id}`)
 }
 
+export type WxWorkApiApp = {
+  agentId: string
+}
+
 export function fetchWxWorkKFAccounts() {
   return request<WxWorkKFAccount[]>("/api/dashboard/channel/wxwork/kf/accounts")
+}
+
+export function fetchWxWorkApiApps() {
+  return request<WxWorkApiApp[]>("/api/dashboard/channel/wxwork/api_apps")
 }
 
 export function testWxWorkKFReadMessages(id: number) {

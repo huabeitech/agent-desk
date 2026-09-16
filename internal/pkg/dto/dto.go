@@ -15,6 +15,9 @@ type AuthPrincipal struct {
 
 type WxWorkKFChannelConfig struct {
 	OpenKfID string `json:"openKfId"`
+	// AgentID 指定该渠道使用的企业微信自建应用。
+	// 系统据此找到对应的 corpSecret，换取并缓存该应用独立的 accessToken。
+	AgentID string `json:"agentId"`
 }
 
 type WebChannelConfig struct {

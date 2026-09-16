@@ -2,7 +2,10 @@
 .worktrees
 .idea
 .pnpm-store
+.trae/
 
+doc/
+logs/
 data/
 config/config.yaml
 .env
@@ -24,3 +27,5 @@ agent-desk
 
 test-reports
 web/public/flowgram-editor/
+
+*.tar

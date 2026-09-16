@@ -168,7 +168,7 @@ func (s *wxWorkKFOutboundService) processOutbox(outboxID int64) error {
 
 	wxMsgIDs := make([]string, 0, len(chunks))
 	for i := range chunks {
-		wxMsgID, sendErr := s.sendOutboundChunk(mapping, message, chunks[i], i)
+		wxMsgID, sendErr := s.sendOutboundChunk(channel, mapping, message, chunks[i], i)
 		if sendErr != nil {
 			return s.markOutboxFailed(outbox, sendErr.Error())
 		}
@@ -229,19 +229,23 @@ func (s *wxWorkKFOutboundService) processOutbox(outboxID int64) error {
 	})
 }
 
-func (s *wxWorkKFOutboundService) sendOutboundChunk(mapping *models.WxWorkKFConversation, message *models.Message, chunk wxWorkKFOutboundChunk, chunkIndex int) (string, error) {
+func (s *wxWorkKFOutboundService) sendOutboundChunk(channel *models.Channel, mapping *models.WxWorkKFConversation, message *models.Message, chunk wxWorkKFOutboundChunk, chunkIndex int) (string, error) {
 	switch chunk.MessageType {
 	case enums.IMMessageTypeText:
-		return s.sendTextMessage(mapping, message, chunk.Content, chunkIndex)
+		return s.sendTextMessage(channel, mapping, message, chunk.Content, chunkIndex)
 	case enums.IMMessageTypeImage:
-		return s.sendImageMessage(mapping, message, chunk, chunkIndex)
+		return s.sendImageMessage(channel, mapping, message, chunk, chunkIndex)
 	default:
 		return "", i18nx.Errorf("error.wxwork.unsupportedOutboundMessageType", chunk.MessageType)
 	}
 }
 
-func (s *wxWorkKFOutboundService) sendTextMessage(mapping *models.WxWorkKFConversation, message *models.Message, content string, chunkIndex int) (string, error) {
-	cli, err := wxwork.GetWorkCli().GetKF()
+func (s *wxWorkKFOutboundService) sendTextMessage(channel *models.Channel, mapping *models.WxWorkKFConversation, message *models.Message, content string, chunkIndex int) (string, error) {
+	workCli, err := ChannelService.GetWxWorkCliByChannel(channel)
+	if err != nil {
+		return "", err
+	}
+	cli, err := workCli.GetKF()
 	if err != nil {
 		return "", err
 	}
@@ -282,7 +286,7 @@ func (s *wxWorkKFOutboundService) sendTextMessage(mapping *models.WxWorkKFConver
 	return strings.TrimSpace(resp.MsgID), nil
 }
 
-func (s *wxWorkKFOutboundService) sendImageMessage(mapping *models.WxWorkKFConversation, message *models.Message, chunk wxWorkKFOutboundChunk, chunkIndex int) (string, error) {
+func (s *wxWorkKFOutboundService) sendImageMessage(channel *models.Channel, mapping *models.WxWorkKFConversation, message *models.Message, chunk wxWorkKFOutboundChunk, chunkIndex int) (string, error) {
 	if strings.TrimSpace(chunk.AssetID) == "" {
 		return "", i18nx.Errorf("error.e0145")
 	}
@@ -312,7 +316,11 @@ func (s *wxWorkKFOutboundService) sendImageMessage(mapping *models.WxWorkKFConve
 		"external_userid", mapping.ExternalUserID,
 	)
 
-	materialCli := wxwork.GetWorkCli().GetMaterial()
+	workCli, err := ChannelService.GetWxWorkCliByChannel(channel)
+	if err != nil {
+		return "", err
+	}
+	materialCli := workCli.GetMaterial()
 	uploadResp, err := materialCli.UploadTempFileFromReader(asset.Filename, "image", fileReader)
 	if err != nil {
 		return "", err
@@ -321,7 +329,7 @@ func (s *wxWorkKFOutboundService) sendImageMessage(mapping *models.WxWorkKFConve
 		return "", i18nx.Errorf("error.e0113")
 	}
 
-	kfCli, err := wxwork.GetWorkCli().GetKF()
+	kfCli, err := workCli.GetKF()
 	if err != nil {
 		return "", err
 	}

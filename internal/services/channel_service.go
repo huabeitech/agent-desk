@@ -2,6 +2,7 @@ package services
 
 import (
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/config"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/request"
 	"agent-desk/internal/pkg/dto/response"
@@ -22,6 +23,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mlogclub/simple/common/strs"
 	"github.com/mlogclub/simple/sqls"
+	"github.com/silenceper/wechat/v2/work"
 	"github.com/silenceper/wechat/v2/work/kf"
 )
 
@@ -196,7 +198,31 @@ func (s *channelService) ParseWxWorkKFChannelConfig(raw string) (*dto.WxWorkKFCh
 		return nil, err
 	}
 	cfg.OpenKfID = strings.TrimSpace(cfg.OpenKfID)
+	cfg.AgentID = strings.TrimSpace(cfg.AgentID)
 	return cfg, nil
+}
+
+// GetWxWorkCliByChannel 返回渠道绑定 agentId 对应的企微客户端。
+// 不同渠道可绑定不同应用，客户端与 access_token 均按应用隔离。
+func (s *channelService) GetWxWorkCliByChannel(channel *models.Channel) (*work.Work, error) {
+	if channel == nil {
+		return nil, errorsx.InvalidParamI18n("error.wxwork.appNotConfigured", "")
+	}
+	cfg, err := s.ParseWxWorkKFChannelConfig(channel.ConfigJSON)
+	if err != nil {
+		return nil, err
+	}
+	return wxwork.GetWorkCliByAgentID(cfg.AgentID)
+}
+
+// ListWxWorkApiApps 返回配置文件中可用的企业微信应用（agentId 列表），供渠道表单选择。
+func (s *channelService) ListWxWorkApiApps() []response.WxWorkApiAppResponse {
+	apps := config.Current().WxWork.NormalizedAPIApps()
+	ret := make([]response.WxWorkApiAppResponse, 0, len(apps))
+	for _, app := range apps {
+		ret = append(ret, response.WxWorkApiAppResponse{AgentID: app.AgentID})
+	}
+	return ret
 }
 
 func (s *channelService) ListWxWorkKFAccounts() ([]response.WxWorkKFAccountResponse, error) {
@@ -552,6 +578,12 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 		}
 		if cfg == nil || cfg.OpenKfID == "" {
 			return nil, errorsx.InvalidParamI18n("error.e0103")
+		}
+		if cfg.AgentID == "" {
+			return nil, errorsx.InvalidParamI18n("error.wxwork.agentIdRequired")
+		}
+		if _, err := wxwork.GetWorkCliByAgentID(cfg.AgentID); err != nil {
+			return nil, err
 		}
 		if channel := s.GetEnabledWxWorkKFChannelByOpenKfID(cfg.OpenKfID); channel != nil && channel.ID != id {
 			return nil, errorsx.InvalidParamI18n("error.e0069")

@@ -23,9 +23,11 @@ import {
   type AIAgent,
   type AdminChannel,
   type CreateAdminChannelPayload,
+  type WxWorkApiApp,
   type WxWorkKFAccount,
   fetchAIAgentsAll,
   fetchChannel,
+  fetchWxWorkApiApps,
   fetchWxWorkKFAccounts,
 	rollbackChannelAIAgentRollout,
   resetChannelUserTokenSecret,
@@ -100,6 +102,7 @@ function createSchema(t: Translate) {
       aiReplyTimeoutNotice: z.string().trim().max(500, t("channel.aiReplyTimeoutNoticeTooLong")),
       name: z.string().trim().min(1, t("channel.nameRequired")),
       openKfId: z.string().trim(),
+      wxAgentId: z.string().trim(),
       botToken: z.string().trim(),
       botUsername: z.string().trim(),
       webhookSecret: z.string().trim(),
@@ -121,6 +124,13 @@ function createSchema(t: Translate) {
           code: "custom",
           path: ["openKfId"],
           message: t("channel.wxworkAccountRequired"),
+        })
+      }
+      if (values.channelType === "wxwork_kf" && !values.wxAgentId.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["wxAgentId"],
+          message: t("channel.wxworkAppRequired"),
         })
       }
       if (values.channelType === "telegram" && !values.botToken.trim()) {
@@ -149,6 +159,7 @@ type EditForm = {
   aiReplyTimeoutNotice: string
   name: string
   openKfId: string
+  wxAgentId: string
   botToken: string
   botUsername: string
   webhookSecret: string
@@ -176,6 +187,7 @@ function createEmptyForm(t: Translate): EditForm {
     aiReplyTimeoutNotice: "",
     name: "",
     openKfId: "",
+    wxAgentId: "",
     botToken: "",
     botUsername: "",
     webhookSecret: "",
@@ -193,15 +205,18 @@ function createEmptyForm(t: Translate): EditForm {
   }
 }
 
-function parseOpenKfId(configJson: string): string {
+function parseWxWorkKfConfig(configJson: string): { openKfId: string; agentId: string } {
   if (!configJson.trim()) {
-    return ""
+    return { openKfId: "", agentId: "" }
   }
   try {
-    const parsed = JSON.parse(configJson) as { openKfId?: string }
-    return typeof parsed.openKfId === "string" ? parsed.openKfId.trim() : ""
+    const parsed = JSON.parse(configJson) as { openKfId?: string; agentId?: string }
+    return {
+      openKfId: typeof parsed.openKfId === "string" ? parsed.openKfId.trim() : "",
+      agentId: typeof parsed.agentId === "string" ? parsed.agentId.trim() : "",
+    }
   } catch {
-    return ""
+    return { openKfId: "", agentId: "" }
   }
 }
 
@@ -300,6 +315,7 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
   const zaloConfig = isZaloOA
     ? parseZaloOAChannelConfig(item.configJson)
     : null
+  const wxWorkConfig = parseWxWorkKfConfig(item.configJson)
   return {
     channelType:
       item.channelType === "wxwork_kf"
@@ -317,7 +333,8 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
     aiReplyTimeoutSeconds: item.aiReplyTimeoutSeconds || 0,
     aiReplyTimeoutNotice: item.aiReplyTimeoutNotice || "",
     name: item.name,
-    openKfId: parseOpenKfId(item.configJson),
+    openKfId: wxWorkConfig.openKfId,
+    wxAgentId: wxWorkConfig.agentId,
     botToken: telegramConfig?.botToken ?? "",
     botUsername: telegramConfig?.botUsername ?? "",
     webhookSecret: telegramConfig?.webhookSecret ?? zaloConfig?.webhookSecret ?? "",
@@ -349,7 +366,7 @@ function buildPayload(form: EditForm, status: number, t: Translate): CreateAdmin
   }
   const configJson =
     channelType === "wxwork_kf"
-      ? JSON.stringify({ openKfId: form.openKfId.trim() })
+      ? JSON.stringify({ openKfId: form.openKfId.trim(), agentId: form.wxAgentId.trim() })
       : channelType === "telegram"
         ? JSON.stringify({
             botToken: form.botToken.trim(),
@@ -436,6 +453,8 @@ function ChannelFormBody({
   const [loading, setLoading] = useState(false)
   const [aiAgents, setAIAgents] = useState<AIAgent[]>([])
   const [wxWorkKFAccounts, setWxWorkKFAccounts] = useState<WxWorkKFAccount[]>([])
+  const [wxWorkApiApps, setWxWorkApiApps] = useState<WxWorkApiApp[]>([])
+  const [wxWorkApiAppsLoading, setWxWorkApiAppsLoading] = useState(false)
   const [wxWorkKFAccountsLoading, setWxWorkKFAccountsLoading] = useState(false)
   const [wxWorkKFAccountsError, setWxWorkKFAccountsError] = useState("")
   const [channelDetail, setChannelDetail] = useState<AdminChannel | null>(null)
@@ -460,6 +479,7 @@ function ChannelFormBody({
   const channelType = useWatch({ control, name: "channelType" })
   const aiAgentId = useWatch({ control, name: "aiAgentId" })
   const openKfId = useWatch({ control, name: "openKfId" })
+  const wxAgentId = useWatch({ control, name: "wxAgentId" })
   const userTokenSecret = useWatch({ control, name: "userTokenSecret" })
 	const previousRolloutPercent = channelDetail?.previousAiAgentRolloutPercent ?? 0
 
@@ -550,6 +570,27 @@ function ChannelFormBody({
     t,
   ])
 
+  useEffect(() => {
+    if (
+      channelType !== "wxwork_kf" ||
+      wxWorkApiApps.length > 0 ||
+      wxWorkApiAppsLoading
+    ) {
+      return
+    }
+    async function loadWxWorkApiApps() {
+      setWxWorkApiAppsLoading(true)
+      try {
+        setWxWorkApiApps(await fetchWxWorkApiApps())
+      } catch (error) {
+        console.error("Failed to load WeCom apps:", error)
+      } finally {
+        setWxWorkApiAppsLoading(false)
+      }
+    }
+    void loadWxWorkApiApps()
+  }, [channelType, wxWorkApiApps.length, wxWorkApiAppsLoading])
+
   const selectedAIAgent = aiAgents.find((item) => String(item.id) === aiAgentId)
   const aiAgentOptions = aiAgents.map((item) => ({
     value: String(item.id),
@@ -559,6 +600,10 @@ function ChannelFormBody({
   const wxWorkKFAccountOptions = wxWorkKFAccounts.map((item) => ({
     value: item.openKfId,
     label: item.name ? `${item.name} (${item.openKfId})` : item.openKfId,
+  }))
+  const wxWorkApiAppOptions = wxWorkApiApps.map((item) => ({
+    value: item.agentId,
+    label: item.agentId,
   }))
   const channelTypeOptions = [
     { value: "web", label: t("channel.typeWeb") },
@@ -578,6 +623,16 @@ function ChannelFormBody({
     wxWorkKFAccountOptions.unshift({
       value: openKfId,
       label: openKfId,
+    })
+  }
+  if (
+    channelType === "wxwork_kf" &&
+    wxAgentId &&
+    !wxWorkApiAppOptions.some((item) => item.value === wxAgentId)
+  ) {
+    wxWorkApiAppOptions.unshift({
+      value: wxAgentId,
+      label: wxAgentId,
     })
   }
 
@@ -834,32 +889,58 @@ function ChannelFormBody({
             ) : null}
 
             {channelType === "wxwork_kf" ? (
-              <Field data-invalid={!!errors.openKfId}>
-                <FieldLabel>{t("channel.wxworkAccount")}</FieldLabel>
-                <FieldContent>
-                  <Controller
-                    control={control}
-                    name="openKfId"
-                    render={({ field }) => (
-                      <OptionCombobox
-                        value={field.value}
-                        options={wxWorkKFAccountOptions}
-                        placeholder={
-                          wxWorkKFAccountsLoading ? t("channel.loadingWxworkAccount") : t("channel.selectWxworkAccount")
-                        }
-                        searchPlaceholder={t("channel.searchWxworkAccount")}
-                        emptyText={
-                          wxWorkKFAccountsError || t("channel.emptyWxworkAccount")
-                        }
-                        disabled={wxWorkKFAccountsLoading}
-                        onChange={field.onChange}
-                      />
-                    )}
-                  />
-                  <FieldError errors={[errors.openKfId]} />
-                  <WxWorkReadTestButton channelId={channelDetail?.id ?? itemId} />
-                </FieldContent>
-              </Field>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field data-invalid={!!errors.openKfId}>
+                  <FieldLabel>{t("channel.wxworkAccount")}</FieldLabel>
+                  <FieldContent>
+                    <Controller
+                      control={control}
+                      name="openKfId"
+                      render={({ field }) => (
+                        <OptionCombobox
+                          value={field.value}
+                          options={wxWorkKFAccountOptions}
+                          placeholder={
+                            wxWorkKFAccountsLoading ? t("channel.loadingWxworkAccount") : t("channel.selectWxworkAccount")
+                          }
+                          searchPlaceholder={t("channel.searchWxworkAccount")}
+                          emptyText={
+                            wxWorkKFAccountsError || t("channel.emptyWxworkAccount")
+                          }
+                          disabled={wxWorkKFAccountsLoading}
+                          onChange={field.onChange}
+                        />
+                      )}
+                    />
+                    <FieldError errors={[errors.openKfId]} />
+                  </FieldContent>
+                </Field>
+
+                <Field data-invalid={!!errors.wxAgentId}>
+                  <FieldLabel>{t("channel.wxworkApp")}</FieldLabel>
+                  <FieldContent>
+                    <Controller
+                      control={control}
+                      name="wxAgentId"
+                      render={({ field }) => (
+                        <OptionCombobox
+                          value={field.value}
+                          options={wxWorkApiAppOptions}
+                          placeholder={
+                            wxWorkApiAppsLoading ? t("channel.loadingWxworkAccount") : t("channel.selectWxworkApp")
+                          }
+                          searchPlaceholder={t("channel.searchWxworkAccount")}
+                          emptyText={t("channel.emptyWxworkApp")}
+                          disabled={wxWorkApiAppsLoading}
+                          onChange={field.onChange}
+                        />
+                      )}
+                    />
+                    <FieldError errors={[errors.wxAgentId]} />
+                    <WxWorkReadTestButton channelId={channelDetail?.id ?? itemId} />
+                  </FieldContent>
+                </Field>
+              </div>
             ) : null}
 
             {channelType === "web" || channelType === "wechat_mp" ? (

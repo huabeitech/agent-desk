@@ -46,6 +46,15 @@ type WxWorkNotifyConfig struct {
 	DuplicateCheckInterval int     `yaml:"duplicateCheckInterval"`
 }
 
+// WxWorkApiAppConfig 定义一个企业微信自建应用（agentId + corpSecret）。
+// 不同应用的 corpSecret 换取各自独立的 access_token，必须按应用分开缓存与使用。
+type WxWorkApiAppConfig struct {
+	// AgentID 为企业微信自建应用 AgentID。
+	AgentID string `yaml:"agentId"`
+	// CorpSecret 为该应用的 Secret，用于换取该应用的 access_token。
+	CorpSecret string `yaml:"corpSecret"`
+}
+
 type ServerConfig struct {
 	Port           int        `yaml:"port"`
 	CompanyName    string     `yaml:"companyName"`
@@ -203,9 +212,14 @@ type WxWorkConfig struct {
 	// CorpID 为企业微信公司 ID，例如 wwxxxxxxxxxxxxxxxx。
 	CorpID string `yaml:"corpId"`
 	// CorpSecret 为企业微信应用 Secret，用于换取 access_token。
+	// 仅用于单应用的旧配置；多应用场景请使用 APIApps。
 	CorpSecret string `yaml:"corpSecret"`
 	// AgentID 为企业微信自建应用 AgentID。
+	// 仅用于单应用的旧配置；多应用场景请使用 APIApps。
 	AgentID string `yaml:"agentId"`
+	// APIApps 为可用的企业微信自建应用列表，每项包含 agentId 与对应 corpSecret。
+	// 接入渠道按 agentId 选择应用，使用该应用的 corpSecret 换取独立 access_token。
+	APIApps []WxWorkApiAppConfig `yaml:"apiApps"`
 	// OAuthRedirect 为企业微信网页授权回调地址。
 	// 必须填写完整 URL，且通常指向后端接口 /api/auth/wxwork/callback。
 	OAuthRedirect string `yaml:"oauthRedirect"`
@@ -223,6 +237,40 @@ type WxWorkConfig struct {
 	EncodingAESKey string `yaml:"encodingAESKey"`
 	// Notify 为企业微信应用消息通知配置。
 	Notify WxWorkNotifyConfig `yaml:"notify"`
+}
+
+// NormalizedAPIApps 返回去除空白并过滤掉不完整项后的 apiApps。
+// 当 apiApps 为空且配置了顶层 corpSecret 时，回退为单应用列表，兼容旧配置。
+func (c WxWorkConfig) NormalizedAPIApps() []WxWorkApiAppConfig {
+	apps := make([]WxWorkApiAppConfig, 0, len(c.APIApps))
+	for _, app := range c.APIApps {
+		agentID := strings.TrimSpace(app.AgentID)
+		corpSecret := strings.TrimSpace(app.CorpSecret)
+		if agentID == "" || corpSecret == "" {
+			continue
+		}
+		apps = append(apps, WxWorkApiAppConfig{AgentID: agentID, CorpSecret: corpSecret})
+	}
+	if len(apps) == 0 {
+		if corpSecret := strings.TrimSpace(c.CorpSecret); corpSecret != "" {
+			apps = append(apps, WxWorkApiAppConfig{
+				AgentID:    strings.TrimSpace(c.AgentID),
+				CorpSecret: corpSecret,
+			})
+		}
+	}
+	return apps
+}
+
+// FindAPIApp 按 agentID 查找已配置的应用。
+func (c WxWorkConfig) FindAPIApp(agentID string) (WxWorkApiAppConfig, bool) {
+	agentID = strings.TrimSpace(agentID)
+	for _, app := range c.NormalizedAPIApps() {
+		if app.AgentID == agentID {
+			return app, true
+		}
+	}
+	return WxWorkApiAppConfig{}, false
 }
 
 type WebhookConfig struct {

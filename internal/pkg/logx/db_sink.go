@@ -22,7 +22,7 @@ const (
 	dbSinkFlushInterval   = 1 * time.Second
 )
 
-// dbSink 包装底层 stdout handler，并将 INFO/WARN/ERROR 级别日志异步写入数据库。
+// dbSink 包装底层 stdout handler，并将 WARN/ERROR 级别日志异步写入数据库。
 type dbSink struct {
 	inner slog.Handler
 
@@ -79,8 +79,8 @@ func (h *dbSink) Handle(ctx context.Context, r slog.Record) error {
 		return err
 	}
 
-	// 只持久化 INFO 及以上级别（DEBUG 不写库）
-	if r.Level < slog.LevelInfo {
+	// 只持久化 WARN 及以上级别（DEBUG/INFO 不写库）
+	if r.Level < slog.LevelWarn {
 		return nil
 	}
 

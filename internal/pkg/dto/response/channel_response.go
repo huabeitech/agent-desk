@@ -30,6 +30,11 @@ type WxWorkKFAccountResponse struct {
 	ManagePrivilege bool   `json:"managePrivilege"`
 }
 
+// WxWorkApiAppResponse 为配置文件中可用的企业微信应用。
+type WxWorkApiAppResponse struct {
+	AgentID string `json:"agentId"`
+}
+
 type ChannelMessageOutboxResponse struct {
 	ID             int64  `json:"id"`
 	ChannelType    string `json:"channelType"`

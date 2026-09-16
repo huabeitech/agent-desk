@@ -30,18 +30,19 @@ const (
 	wxWorkReadTestStageSyncMsg  = "syncmsg"
 
 	// 本地错误码（非企业微信返回），前端按这些码做本地化排查建议。
-	wxWorkReadTestErrInvalidChannel = "INVALID_CHANNEL"
-	wxWorkReadTestErrOpenKFMissing  = "OPENKFID_MISSING"
-	wxWorkReadTestErrConfigJSON     = "INVALID_CONFIG_JSON"
-	wxWorkReadTestErrDisabled       = "WXWORK_DISABLED"
-	wxWorkReadTestErrNetwork        = "NETWORK_ERROR"
-	wxWorkReadTestErrBadResponse    = "BAD_RESPONSE"
+	wxWorkReadTestErrInvalidChannel   = "INVALID_CHANNEL"
+	wxWorkReadTestErrOpenKFMissing    = "OPENKFID_MISSING"
+	wxWorkReadTestErrAgentIDMissing   = "AGENTID_MISSING"
+	wxWorkReadTestErrAppNotConfigured = "AGENTID_NOT_CONFIGURED"
+	wxWorkReadTestErrConfigJSON       = "INVALID_CONFIG_JSON"
+	wxWorkReadTestErrNetwork          = "NETWORK_ERROR"
+	wxWorkReadTestErrBadResponse      = "BAD_RESPONSE"
 
 	wxWorkReadTestSyncLimit       uint64 = 1000 // 单次 sync_msg 拉取条数（官方最大值）
-	wxWorkReadTestMaxPages             = 5    // 最多翻页次数，限制测试请求耗时
-	wxWorkReadTestSampleSize           = 20   // 返回最近样例条数
-	wxWorkReadTestMaxPreviewRunes      = 500  // 文本样例最大字符数
-	wxWorkReadTestHTTPTimeout          = 10 * time.Second
+	wxWorkReadTestMaxPages               = 5    // 最多翻页次数，限制测试请求耗时
+	wxWorkReadTestSampleSize             = 20   // 返回最近样例条数
+	wxWorkReadTestMaxPreviewRunes        = 500  // 文本样例最大字符数
+	wxWorkReadTestHTTPTimeout            = 10 * time.Second
 )
 
 var wxWorkReadTestHTTPClient = &http.Client{Timeout: wxWorkReadTestHTTPTimeout}
@@ -60,10 +61,10 @@ type wxWorkReadTestSyncRequest struct {
 }
 
 type wxWorkReadTestSyncResponse struct {
-	ErrCode    int64          `json:"errcode"`
-	ErrMsg     string         `json:"errmsg"`
-	NextCursor string         `json:"next_cursor"`
-	HasMore    uint32         `json:"has_more"`
+	ErrCode    int64            `json:"errcode"`
+	ErrMsg     string           `json:"errmsg"`
+	NextCursor string           `json:"next_cursor"`
+	HasMore    uint32           `json:"has_more"`
 	MsgList    []map[string]any `json:"msg_list"`
 }
 
@@ -76,21 +77,25 @@ func (s *channelService) TestWxWorkKFReadMessages(channelID int64) (*response.Wx
 		return s.failReadTestResult("", wxWorkReadTestErrInvalidChannel, ""), nil
 	}
 
-	openKfID := ""
-	if cfg, err := s.ParseWxWorkKFChannelConfig(channel.ConfigJSON); err != nil {
-		return s.failReadTestResult("", wxWorkReadTestErrConfigJSON, err.Error()), nil
-	} else if cfg != nil {
-		openKfID = cfg.OpenKfID
+	kfCfg, cfgErr := s.ParseWxWorkKFChannelConfig(channel.ConfigJSON)
+	if cfgErr != nil {
+		return s.failReadTestResult("", wxWorkReadTestErrConfigJSON, cfgErr.Error()), nil
 	}
+	openKfID := strings.TrimSpace(kfCfg.OpenKfID)
 	if openKfID == "" {
 		return s.failReadTestResult("", wxWorkReadTestErrOpenKFMissing, ""), nil
+	}
+	agentID := strings.TrimSpace(kfCfg.AgentID)
+	if agentID == "" {
+		return s.failReadTestResult("", wxWorkReadTestErrAgentIDMissing, ""), nil
 	}
 
 	wxConfig := config.Current().WxWork
 	corpID := strings.TrimSpace(wxConfig.CorpID)
-	corpSecret := strings.TrimSpace(wxConfig.CorpSecret)
-	if !wxConfig.Enabled || corpID == "" || corpSecret == "" {
-		return s.failReadTestResult("", wxWorkReadTestErrDisabled, ""), nil
+	app, appFound := wxConfig.FindAPIApp(agentID)
+	corpSecret := strings.TrimSpace(app.CorpSecret)
+	if !wxConfig.Enabled || corpID == "" || !appFound || corpSecret == "" {
+		return s.failReadTestResult("", wxWorkReadTestErrAppNotConfigured, agentID), nil
 	}
 
 	// 1. 获取 access_token（独立调用，不接触 SDK 令牌缓存；人工测试频率低，可接受）

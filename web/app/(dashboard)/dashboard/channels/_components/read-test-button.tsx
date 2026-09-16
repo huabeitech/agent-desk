@@ -38,6 +38,8 @@ const READ_TEST_HINT_KEYS: Record<string, string> = {
   "60030": "channel.readTestHint60030",
   WXWORK_DISABLED: "channel.readTestHintWxworkDisabled",
   OPENKFID_MISSING: "channel.readTestHintOpenkfidMissing",
+  AGENTID_MISSING: "channel.readTestHintAgentidMissing",
+  AGENTID_NOT_CONFIGURED: "channel.readTestHintAgentidNotConfigured",
   INVALID_CHANNEL: "channel.readTestHintInvalidChannel",
   INVALID_CONFIG_JSON: "channel.readTestHintInvalidConfigJson",
   NETWORK_ERROR: "channel.readTestHintNetwork",
