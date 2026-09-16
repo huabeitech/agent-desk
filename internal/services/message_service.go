@@ -559,6 +559,15 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 		)
 	}
 
+	// Discord 渠道消息入队，异步发送
+	if enqueueErr := ChannelMessageOutboxService.EnqueueDiscordMessage(conversation, message); enqueueErr != nil {
+		slog.Error("enqueue discord outbox failed",
+			"conversation_id", conversation.ID,
+			"message_id", message.ID,
+			"error", enqueueErr,
+		)
+	}
+
 	// 客户发送消息，触发AI回复
 	if senderType == enums.IMSenderTypeCustomer {
 		if TriggerAIReplyAsyncHook != nil {

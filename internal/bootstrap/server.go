@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"log/slog"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"agent-desk/internal/pkg/i18nx"
 	"agent-desk/internal/pkg/tracex"
 	"agent-desk/internal/services"
+	"agent-desk/internal/services/storage"
 	webspa "agent-desk/web"
 
 	"github.com/gin-gonic/gin"
@@ -44,9 +46,27 @@ func NewServer() (*gin.Engine, error) {
 
 	handleSpa(app)
 
-	app.StaticFS(cfg.Storage.Local.BaseURL, ginx.StaticFiles(cfg.Storage.Local.Root))
+	storageGroup := app.Group(cfg.Storage.Local.BaseURL, assetResponseHeaders())
+	storageGroup.StaticFS("", ginx.StaticFiles(cfg.Storage.Local.Root))
 
 	return app, nil
+}
+
+// assetResponseHeaders guards the locally stored assets.
+//
+// Those files are user-supplied bytes served from this application's own origin,
+// so a response a browser renders inline is same-origin content. nosniff stops a
+// browser reinterpreting the payload, and forcing a download for anything that is
+// not previewable media means a document type that slipped in before this policy
+// existed still cannot run as a page.
+func assetResponseHeaders() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		ctx.Header("X-Content-Type-Options", "nosniff")
+		if !storage.IsPreviewableExtension(path.Ext(ctx.Request.URL.Path)) {
+			ctx.Header("Content-Disposition", "attachment")
+		}
+		ctx.Next()
+	}
 }
 
 func corsMiddleware() gin.HandlerFunc {
@@ -224,6 +244,7 @@ func addRouter(app *gin.Engine) {
 	registerThirdWechatRoutes(thirdGroup.Group("/wechat"))
 	registerThirdTelegramRoutes(thirdGroup.Group("/telegram"))
 	registerThirdZaloRoutes(thirdGroup.Group("/zalo"))
+	registerThirdDiscordRoutes(thirdGroup.Group("/discord"))
 }
 
 type spaShellRewrite struct {

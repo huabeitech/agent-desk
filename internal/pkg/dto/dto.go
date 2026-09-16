@@ -67,3 +67,14 @@ type ZaloOAChannelConfig struct {
 	WebhookSecret  string `json:"webhookSecret,omitempty"`
 	WelcomeMessage string `json:"welcomeMessage,omitempty"`
 }
+
+type DiscordChannelConfig struct {
+	GuildID        string `json:"guildId,omitempty"`
+	GuildName      string `json:"guildName,omitempty"`
+	ChannelScope   string `json:"channelScope,omitempty"` // all | dm_only
+	BotToken       string `json:"botToken,omitempty"`
+	ApplicationID  string `json:"applicationId,omitempty"`
+	PublicKey      string `json:"publicKey,omitempty"`
+	WebhookSecret  string `json:"webhookSecret,omitempty"`
+	WelcomeMessage string `json:"welcomeMessage,omitempty"`
+}

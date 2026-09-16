@@ -4,6 +4,7 @@ import { createElement } from "react"
 
 import {
   Building2Icon,
+  Gamepad2Icon,
   MessagesSquareIcon,
   MessageSquareMoreIcon,
   SendIcon,
@@ -19,6 +20,7 @@ const CHANNEL_TYPE_LABEL_KEYS: Record<string, string> = {
   wxwork_kf: "channel.typeWxworkKf",
   telegram: "channel.typeTelegram",
   zalo_oa: "channel.typeZaloOa",
+  discord: "channel.typeDiscord",
 }
 
 // getChannelTypeLabel 返回渠道类型的本地化显示名；未知类型回退为原始标识。
@@ -34,6 +36,7 @@ const CHANNEL_TYPE_ICONS: Record<string, LucideIcon> = {
   wxwork_kf: MessageSquareMoreIcon,
   telegram: SendIcon,
   zalo_oa: SendIcon,
+  discord: Gamepad2Icon,
 }
 
 export function ChannelTypeIcon({

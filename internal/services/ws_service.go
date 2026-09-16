@@ -2,6 +2,7 @@ package services
 
 import (
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/constants"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/response"
 	"agent-desk/internal/pkg/enums"
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -652,7 +654,13 @@ func (s *wsService) canSubscribeConversation(session *ClientSession, conversatio
 		return false
 	}
 	if session.Role == realtimeRoleAdmin {
-		return true
+		// Staff sessions must hold the same conversation-view permission the
+		// REST endpoints require; a bare admin-role websocket must not become
+		// a side channel around RequirePermission.
+		if session.Principal != nil && slices.Contains(session.Principal.Permissions, constants.PermissionConversationView.Code) {
+			return true
+		}
+		return false
 	}
 	conversation := ConversationService.Get(conversationID)
 	if conversation == nil {

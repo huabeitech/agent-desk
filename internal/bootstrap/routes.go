@@ -444,3 +444,8 @@ func registerThirdZaloRoutes(group *gin.RouterGroup) {
 	group.POST("/webhook", third.ZaloPostWebhook)
 	group.POST("/webhook/:channel_id", third.ZaloPostWebhook)
 }
+
+func registerThirdDiscordRoutes(group *gin.RouterGroup) {
+	group.POST("/webhook", third.DiscordPostWebhook)
+	group.POST("/webhook/:channel_id", third.DiscordPostWebhook)
+}

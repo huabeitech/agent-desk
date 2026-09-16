@@ -1,6 +1,4 @@
 [submodule "qdrant"]
 	path = qdrant
 	url = git@github.com:huabeitech/agent-desk-qdrant.git
-[submodule "docs"]
-	path = docs
-	url = git@github.com:huabeitech/agent-desk-docs.git
+

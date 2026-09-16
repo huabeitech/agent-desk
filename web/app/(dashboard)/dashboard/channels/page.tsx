@@ -43,6 +43,7 @@ export default function DashboardChannelsPage() {
     { value: "all", label: t("channel.allTypes") },
     { value: "web", label: t("channel.typeWeb") },
     { value: "telegram", label: t("channel.typeTelegram") },
+    { value: "discord", label: t("channel.typeDiscord") },
     { value: "zalo_oa", label: t("channel.typeZaloOa") },
     { value: "wechat_mp", label: t("channel.typeWechatMp") },
     { value: "wxwork_kf", label: t("channel.typeWxworkKf") },

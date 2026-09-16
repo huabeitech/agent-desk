@@ -298,6 +298,64 @@ func TestNewServerSeparatesAPIStaticAndSPA(t *testing.T) {
 	}
 }
 
+func TestNewServerHardensStoredAssetResponses(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"screenshot.png", "archive.zip", "legacy-page.html"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("payload"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+
+	config.SetCurrent(&config.Config{
+		Storage: config.StorageConfig{
+			Local: config.LocalStorageConfig{
+				Root:    root,
+				BaseURL: "/storage",
+			},
+		},
+	})
+
+	app, err := NewServer()
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+
+	tests := []struct {
+		path           string
+		wantStatus     int
+		contentType    string
+		wantAttachment bool
+	}{
+		{path: "/storage/screenshot.png", wantStatus: http.StatusOK, contentType: "image/png"},
+		{path: "/storage/archive.zip", wantStatus: http.StatusOK, wantAttachment: true},
+		// A file planted before the upload policy existed must still not render.
+		{path: "/storage/legacy-page.html", wantStatus: http.StatusOK, wantAttachment: true},
+		{path: "/storage/missing.png", wantStatus: http.StatusNotFound},
+	}
+
+	for _, tt := range tests {
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+		if rec.Code != tt.wantStatus {
+			t.Fatalf("%s status=%d want %d", tt.path, rec.Code, tt.wantStatus)
+		}
+		if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Fatalf("%s X-Content-Type-Options=%q want nosniff", tt.path, got)
+		}
+		if tt.contentType != "" && !strings.Contains(rec.Header().Get("Content-Type"), tt.contentType) {
+			t.Fatalf("%s Content-Type=%q want %q", tt.path, rec.Header().Get("Content-Type"), tt.contentType)
+		}
+		got := rec.Header().Get("Content-Disposition")
+		if tt.wantAttachment && got != "attachment" {
+			t.Fatalf("%s Content-Disposition=%q want attachment", tt.path, got)
+		}
+		if !tt.wantAttachment && got != "" {
+			t.Fatalf("%s Content-Disposition=%q want empty so the asset renders inline", tt.path, got)
+		}
+	}
+}
+
 func TestNewServerAllowsConfiguredCORSOrigin(t *testing.T) {
 	config.SetCurrent(&config.Config{
 		Server: config.ServerConfig{

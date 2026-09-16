@@ -40,6 +40,10 @@ func Init() {
 		if zaloCount > 0 {
 			slog.Info("zalo oa outbox dispatched", "count", zaloCount)
 		}
+		discordCount := services.DiscordOutboundService.DispatchPendingOutbox()
+		if discordCount > 0 {
+			slog.Info("discord outbox dispatched", "count", discordCount)
+		}
 	})
 
 	// 每天凌晨 3 点清理一个月以前的系统日志。
