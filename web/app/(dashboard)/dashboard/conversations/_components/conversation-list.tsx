@@ -4,6 +4,7 @@ import { UserIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ChannelTypeIcon, getChannelTypeLabel } from "@/lib/channel-i18n";
 import { IMConversationStatus } from "@/lib/generated/enums";
 import { useAgentConversationsStore } from "@/lib/stores/agent-conversations";
 import { formatDateTime } from "@/lib/utils";
@@ -54,12 +55,25 @@ export function ConversationList({ onAfterSelect }: ConversationListProps) {
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="min-w-0 flex-1 truncate font-medium text-sm leading-4">
-                        {conversation.customerName ||
-                          t("conversation.customerFallback", {
-                            id: conversation.customerId || conversation.id,
-                          })}
-                      </span>
+                      <div className="flex min-w-0 flex-1 items-center gap-1">
+                        {conversation.channelType ? (
+                          <span
+                            className="shrink-0 text-muted-foreground"
+                            title={getChannelTypeLabel(conversation.channelType, t)}
+                          >
+                            <ChannelTypeIcon
+                              channelType={conversation.channelType}
+                              className="size-3.5"
+                            />
+                          </span>
+                        ) : null}
+                        <span className="min-w-0 flex-1 truncate font-medium text-sm leading-4">
+                          {conversation.customerName ||
+                            t("conversation.customerFallback", {
+                              id: conversation.customerId || conversation.id,
+                            })}
+                        </span>
+                      </div>
                       {conversation.agentUnreadCount > 0 ? (
                         <div className="flex size-4.5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
                           {conversation.agentUnreadCount > 99

@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"log/slog"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"agent-desk/internal/pkg/i18nx"
 	"agent-desk/internal/pkg/tracex"
 	"agent-desk/internal/services"
+	"agent-desk/internal/services/storage"
 	webspa "agent-desk/web"
 
 	"github.com/gin-gonic/gin"
@@ -44,9 +46,27 @@ func NewServer() (*gin.Engine, error) {
 
 	handleSpa(app)
 
-	app.StaticFS(cfg.Storage.Local.BaseURL, ginx.StaticFiles(cfg.Storage.Local.Root))
+	storageGroup := app.Group(cfg.Storage.Local.BaseURL, assetResponseHeaders())
+	storageGroup.StaticFS("", ginx.StaticFiles(cfg.Storage.Local.Root))
 
 	return app, nil
+}
+
+// assetResponseHeaders guards the locally stored assets.
+//
+// Those files are user-supplied bytes served from this application's own origin,
+// so a response a browser renders inline is same-origin content. nosniff stops a
+// browser reinterpreting the payload, and forcing a download for anything that is
+// not previewable media means a document type that slipped in before this policy
+// existed still cannot run as a page.
+func assetResponseHeaders() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		ctx.Header("X-Content-Type-Options", "nosniff")
+		if !storage.IsPreviewableExtension(path.Ext(ctx.Request.URL.Path)) {
+			ctx.Header("Content-Disposition", "attachment")
+		}
+		ctx.Next()
+	}
 }
 
 func corsMiddleware() gin.HandlerFunc {
@@ -62,9 +82,33 @@ func corsMiddleware() gin.HandlerFunc {
 		}
 		allowedOriginSet[origin] = struct{}{}
 	}
+	// publicAnyOriginPaths 是可被任意来源跨域访问的公开只读接口。
+	// 这些接口不携带鉴权、不返回敏感信息，且供嵌入式 SDK 挂件在任意宿主站点
+	// 预拉取展示配置（之后聊天 iframe 与后端同源，不再触发跨域）。
+	publicAnyOriginPaths := map[string]struct{}{
+		"/api/config":         {},
+		"/api/channel/config": {},
+	}
+	applyPublicCORS := func(ctx *gin.Context) {
+		ctx.Header("Access-Control-Allow-Origin", "*")
+		ctx.Header("Access-Control-Allow-Methods", allowMethods)
+		ctx.Header("Access-Control-Allow-Headers", allowHeaders)
+		ctx.Header("Access-Control-Expose-Headers", exposeHeaders)
+		ctx.Header("Access-Control-Max-Age", "600")
+		if ctx.Request.Method == http.MethodOptions {
+			ctx.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		ctx.Next()
+	}
 	return func(ctx *gin.Context) {
 		if isWebsocketUpgrade(ctx) {
 			ctx.Next()
+			return
+		}
+		// 公开只读接口：放行任意来源，无需白名单。
+		if _, isPublic := publicAnyOriginPaths[ctx.Request.URL.Path]; isPublic {
+			applyPublicCORS(ctx)
 			return
 		}
 		origin := strings.TrimRight(strings.TrimSpace(ctx.GetHeader("Origin")), "/")
@@ -194,11 +238,13 @@ func addRouter(app *gin.Engine) {
 	registerDashboardCommunityPostRoutes(dashboardGroup.Group("/support-community/posts"))
 	registerDashboardSkillDefinitionRoutes(dashboardGroup.Group("/skill-definition"))
 	registerDashboardMCPRoutes(dashboardGroup.Group("/mcp"))
+	registerDashboardSystemLogRoutes(dashboardGroup.Group("/system-log"))
 
 	thirdGroup := app.Group("/api/third")
 	registerThirdWechatRoutes(thirdGroup.Group("/wechat"))
 	registerThirdTelegramRoutes(thirdGroup.Group("/telegram"))
 	registerThirdZaloRoutes(thirdGroup.Group("/zalo"))
+	registerThirdDiscordRoutes(thirdGroup.Group("/discord"))
 }
 
 type spaShellRewrite struct {

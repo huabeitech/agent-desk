@@ -13,6 +13,9 @@ type ChannelResponse struct {
 	AIAgentID                     int64        `json:"aiAgentId"`
 	AIAgentRolloutPercent         int          `json:"aiAgentRolloutPercent"`
 	PreviousAIAgentRolloutPercent int          `json:"previousAiAgentRolloutPercent"`
+	AIReplyPlaceholder            string       `json:"aiReplyPlaceholder"`
+	AIReplyTimeoutSeconds         int          `json:"aiReplyTimeoutSeconds"`
+	AIReplyTimeoutNotice          string       `json:"aiReplyTimeoutNotice"`
 	AIAgentName                   string       `json:"aiAgentName,omitempty"`
 	Name                          string       `json:"name"`
 	ConfigJSON                    string       `json:"configJson"`
@@ -25,6 +28,11 @@ type WxWorkKFAccountResponse struct {
 	Name            string `json:"name"`
 	Avatar          string `json:"avatar"`
 	ManagePrivilege bool   `json:"managePrivilege"`
+}
+
+// WxWorkApiAppResponse 为配置文件中可用的企业微信应用。
+type WxWorkApiAppResponse struct {
+	AgentID string `json:"agentId"`
 }
 
 type ChannelMessageOutboxResponse struct {
@@ -55,6 +63,9 @@ func BuildChannelResponse(item *models.Channel) ChannelResponse {
 		AIAgentID:                     item.AIAgentID,
 		AIAgentRolloutPercent:         item.AIAgentRolloutPercent,
 		PreviousAIAgentRolloutPercent: item.PreviousAIAgentRolloutPercent,
+		AIReplyPlaceholder:            item.AIReplyPlaceholder,
+		AIReplyTimeoutSeconds:         item.AIReplyTimeoutSeconds,
+		AIReplyTimeoutNotice:          item.AIReplyTimeoutNotice,
 		Name:                          item.Name,
 		ConfigJSON:                    item.ConfigJSON,
 		Status:                        item.Status,

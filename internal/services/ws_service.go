@@ -2,6 +2,7 @@ package services
 
 import (
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/constants"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/response"
 	"agent-desk/internal/pkg/enums"
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -299,6 +301,32 @@ func (s *wsService) PublishMessageCreated(conversation *models.Conversation, mes
 	content, payload := utils.BuildRenderableMessage(message)
 
 	event := s.newEvent(s.conversationTopic(conversation.ID), RealtimeMessageCreatedEvent{
+		Payload: RealtimeMessageCreatedPayload{
+			ConversationID:    conversation.ID,
+			MessageID:         message.ID,
+			RequestID:         message.RequestID,
+			Message:           s.buildRealtimeMessage(message),
+			Status:            conversation.Status,
+			CurrentAssigneeID: conversation.CurrentAssigneeID,
+			SenderType:        message.SenderType,
+			SenderID:          message.SenderID,
+			MessageType:       message.MessageType,
+			Content:           content,
+			Payload:           payload,
+			SendStatus:        message.SendStatus,
+			SentAt:            formatWsTime(message.SentAt),
+		},
+	})
+	s.PublishToTopics(s.routeConversationTopics(conversation), event)
+}
+
+func (s *wsService) PublishMessageUpdated(conversation *models.Conversation, message *models.Message) {
+	if conversation == nil || message == nil {
+		return
+	}
+	content, payload := utils.BuildRenderableMessage(message)
+
+	event := s.newEvent(s.conversationTopic(conversation.ID), RealtimeMessageUpdatedEvent{
 		Payload: RealtimeMessageCreatedPayload{
 			ConversationID:    conversation.ID,
 			MessageID:         message.ID,
@@ -626,7 +654,13 @@ func (s *wsService) canSubscribeConversation(session *ClientSession, conversatio
 		return false
 	}
 	if session.Role == realtimeRoleAdmin {
-		return true
+		// Staff sessions must hold the same conversation-view permission the
+		// REST endpoints require; a bare admin-role websocket must not become
+		// a side channel around RequirePermission.
+		if session.Principal != nil && slices.Contains(session.Principal.Permissions, constants.PermissionConversationView.Code) {
+			return true
+		}
+		return false
 	}
 	conversation := ConversationService.Get(conversationID)
 	if conversation == nil {

@@ -77,6 +77,7 @@ var Models = []any{
 	&AIWorkflowNodeRun{},
 	&ConversationInterrupt{},
 	&SystemConfig{},
+	&SystemLog{},
 }
 
 // AgentToolInvocation persists the idempotency boundary for a business tool.
@@ -753,6 +754,9 @@ type Channel struct {
 	AIAgentID                     int64  `gorm:"type:bigint;not null;default:0;index"`             // AIAgentID 为该渠道默认接入的 AI Agent。 当外部客户通过该渠道首次进入系统且尚未命中现有未结束会话时，系统会使用该 AI Agent 作为会话默认接待实例。
 	AIAgentRolloutPercent         int    `gorm:"type:int;not null;default:100"`                    // AIAgentRolloutPercent 为该渠道对 AI 自动回复施加的灰度百分比，100 表示不额外限制。
 	PreviousAIAgentRolloutPercent int    `gorm:"type:int;not null;default:0"`                      // PreviousAIAgentRolloutPercent 保存渠道上一次生效的 Agent 灰度比例，0 表示尚无可回滚值。
+	AIReplyPlaceholder            string `gorm:"type:varchar(255);not null;default:''"`            // AIReplyPlaceholder 为 AI 接待占位提示语，AI 收到客户消息后先回复该内容，正式回复生成后原地替换；空值使用系统默认文案。
+	AIReplyTimeoutSeconds         int    `gorm:"type:int;not null;default:0"`                      // AIReplyTimeoutSeconds 为 AI 回复超时秒数，超时后向客户提示处理失败；0 表示使用系统默认（120 秒）。
+	AIReplyTimeoutNotice          string `gorm:"type:varchar(500);not null;default:''"`            // AIReplyTimeoutNotice 为 AI 回复超时或处理失败时向客户提示的文案；空值使用系统默认文案。
 	// ConfigJSON 为渠道专属扩展配置，使用 JSON 存储。
 	// 例如：
 	// 1. web 渠道可记录允许域名、品牌配置等；

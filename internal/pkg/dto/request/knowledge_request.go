@@ -65,6 +65,10 @@ type BatchDeleteKnowledgeDocumentRequest struct {
 	IDs []int64 `json:"ids"`
 }
 
+type BatchBuildKnowledgeDocumentRequest struct {
+	IDs []int64 `json:"ids"`
+}
+
 type CreateKnowledgeFAQRequest struct {
 	KnowledgeBaseID  int64    `json:"knowledgeBaseId"`
 	DirectoryID      int64    `json:"directoryId"`

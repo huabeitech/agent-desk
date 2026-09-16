@@ -25,6 +25,7 @@ RUN pnpm build:sdk && pnpm build
 
 FROM golang:1.26-alpine AS server-builder
 WORKDIR /src
+ENV GOPROXY=https://goproxy.cn,direct
 
 RUN apk add --no-cache git
 COPY go.mod go.sum ./
@@ -43,6 +44,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM golang:1.26-trixie AS server-builder-lancedb
 WORKDIR /src
+ENV GOPROXY=https://goproxy.cn,direct
 
 ARG TARGETOS=linux
 ARG TARGETARCH

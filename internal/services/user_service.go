@@ -2,6 +2,7 @@ package services
 
 import (
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/constants"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/request"
 	"agent-desk/internal/pkg/enums"
@@ -262,6 +263,9 @@ func (s *userService) replaceUserRolesDB(db *gorm.DB, userID int64, roleIDs []in
 		if role.Status != enums.StatusOk {
 			return errorsx.InvalidParamI18n("error.e0291")
 		}
+		if role.IsSystem && (operator == nil || !slices.Contains(operator.Roles, string(constants.RoleCodeSuperAdmin))) {
+			return errorsx.ForbiddenI18n("error.e0293")
+		}
 		relation := &models.UserRole{
 			UserID:      userID,
 			RoleID:      roleID,
@@ -278,6 +282,18 @@ func (s *userService) changePassword(userID int64, password string, operator *dt
 	user := s.Get(userID)
 	if user == nil || user.DeletedAt != nil {
 		return errorsx.InvalidParamI18n("error.e0255")
+	}
+	if operator != nil && operator.UserID != userID && !slices.Contains(operator.Roles, string(constants.RoleCodeSuperAdmin)) {
+		var superAdminCount int64
+		if err := sqls.DB().Model(&models.UserRole{}).
+			Joins("JOIN t_role ON t_role.id = t_user_role.role_id").
+			Where("t_user_role.user_id = ? AND t_role.code = ?", userID, string(constants.RoleCodeSuperAdmin)).
+			Count(&superAdminCount).Error; err != nil {
+			return err
+		}
+		if superAdminCount > 0 {
+			return errorsx.ForbiddenI18n("error.e0293")
+		}
 	}
 	if strings.TrimSpace(password) == "" {
 		return errorsx.InvalidParamI18n("error.e0220")

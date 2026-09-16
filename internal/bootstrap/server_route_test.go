@@ -298,6 +298,64 @@ func TestNewServerSeparatesAPIStaticAndSPA(t *testing.T) {
 	}
 }
 
+func TestNewServerHardensStoredAssetResponses(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"screenshot.png", "archive.zip", "legacy-page.html"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("payload"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+
+	config.SetCurrent(&config.Config{
+		Storage: config.StorageConfig{
+			Local: config.LocalStorageConfig{
+				Root:    root,
+				BaseURL: "/storage",
+			},
+		},
+	})
+
+	app, err := NewServer()
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+
+	tests := []struct {
+		path           string
+		wantStatus     int
+		contentType    string
+		wantAttachment bool
+	}{
+		{path: "/storage/screenshot.png", wantStatus: http.StatusOK, contentType: "image/png"},
+		{path: "/storage/archive.zip", wantStatus: http.StatusOK, wantAttachment: true},
+		// A file planted before the upload policy existed must still not render.
+		{path: "/storage/legacy-page.html", wantStatus: http.StatusOK, wantAttachment: true},
+		{path: "/storage/missing.png", wantStatus: http.StatusNotFound},
+	}
+
+	for _, tt := range tests {
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+		if rec.Code != tt.wantStatus {
+			t.Fatalf("%s status=%d want %d", tt.path, rec.Code, tt.wantStatus)
+		}
+		if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Fatalf("%s X-Content-Type-Options=%q want nosniff", tt.path, got)
+		}
+		if tt.contentType != "" && !strings.Contains(rec.Header().Get("Content-Type"), tt.contentType) {
+			t.Fatalf("%s Content-Type=%q want %q", tt.path, rec.Header().Get("Content-Type"), tt.contentType)
+		}
+		got := rec.Header().Get("Content-Disposition")
+		if tt.wantAttachment && got != "attachment" {
+			t.Fatalf("%s Content-Disposition=%q want attachment", tt.path, got)
+		}
+		if !tt.wantAttachment && got != "" {
+			t.Fatalf("%s Content-Disposition=%q want empty so the asset renders inline", tt.path, got)
+		}
+	}
+}
+
 func TestNewServerAllowsConfiguredCORSOrigin(t *testing.T) {
 	config.SetCurrent(&config.Config{
 		Server: config.ServerConfig{
@@ -369,6 +427,114 @@ func TestNewServerRejectsUnconfiguredCORSOrigin(t *testing.T) {
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("Access-Control-Allow-Origin=%q want empty", got)
+	}
+}
+
+// TestNewServerPublicConfigEndpointsAllowAnyOrigin 验证嵌入式 SDK 挂件预拉取的
+// 两个公开只读接口对任意来源放行（含带 X-Channel-Id 头触发的预检请求），
+// 同时非公开接口仍受白名单约束。
+func TestNewServerPublicConfigEndpointsAllowAnyOrigin(t *testing.T) {
+	config.SetCurrent(&config.Config{
+		Language: "zh-CN",
+		Server: config.ServerConfig{
+			CORS: config.CORSConfig{
+				// 白名单为空：公开接口仍应放行，非公开接口应被拒。
+				AllowedOrigins: nil,
+			},
+		},
+		Storage: config.StorageConfig{
+			Local: config.LocalStorageConfig{
+				Root:    "storage",
+				BaseURL: "/storage",
+			},
+		},
+	})
+
+	app, err := NewServer()
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+
+	cases := []struct {
+		name       string
+		method     string
+		path       string
+		origin     string
+		extraHdrs  map[string]string
+		wantStatus int
+		wantACAO   string
+	}{
+		{
+			name:       "GET /api/config with arbitrary origin",
+			method:     http.MethodGet,
+			path:       "/api/config",
+			origin:     "http://localhost:5201",
+			wantStatus: http.StatusOK,
+			wantACAO:   "*",
+		},
+		{
+			name:       "OPTIONS /api/config preflight passes for arbitrary origin",
+			method:     http.MethodOptions,
+			path:       "/api/config",
+			origin:     "http://localhost:5201",
+			extraHdrs:  map[string]string{"Access-Control-Request-Method": http.MethodGet},
+			wantStatus: http.StatusNoContent,
+			wantACAO:   "*",
+		},
+		{
+			name:       "OPTIONS /api/channel/config preflight passes with X-Channel-Id request header",
+			method:     http.MethodOptions,
+			path:       "/api/channel/config",
+			origin:     "http://localhost:5201",
+			extraHdrs:  map[string]string{"Access-Control-Request-Method": http.MethodGet, "Access-Control-Request-Headers": "X-Channel-Id"},
+			wantStatus: http.StatusNoContent,
+			wantACAO:   "*",
+		},
+		{
+			name:       "GET /api/config without Origin header still works (same-origin)",
+			method:     http.MethodGet,
+			path:       "/api/config",
+			origin:     "",
+			wantStatus: http.StatusOK,
+			wantACAO:   "*",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+			for k, v := range tt.extraHdrs {
+				req.Header.Set(k, v)
+			}
+			app.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status=%d want %d, body=%s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			if got := rec.Header().Get("Access-Control-Allow-Origin"); got != tt.wantACAO {
+				t.Fatalf("Access-Control-Allow-Origin=%q want %q", got, tt.wantACAO)
+			}
+			if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-Channel-Id") {
+				t.Fatalf("Access-Control-Allow-Headers=%q should contain X-Channel-Id", got)
+			}
+		})
+	}
+
+	// 回归：非公开接口在白名单为空时，预检应被拒。
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/api/auth/login", nil)
+	req.Header.Set("Origin", "http://localhost:5201")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	app.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("non-public preflight status=%d want %d", rec.Code, http.StatusForbidden)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("non-public Access-Control-Allow-Origin=%q want empty", got)
 	}
 }
 

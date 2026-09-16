@@ -32,7 +32,7 @@ jobs:
 
       - name: Run Go Tests
         run: |
-          go test -v -tags dev ./internal/services/... ./internal/repositories/... ./internal/pkg/... ./internal/oidcclient/...
+          go test -v -tags dev ./internal/services/... ./internal/repositories/... ./internal/pkg/... ./internal/oidcclient/... ./internal/migration/...
 
   frontend-typecheck:
     name: Frontend Typecheck

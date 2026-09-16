@@ -85,12 +85,13 @@ func (s *conversationService) Updates(id int64, columns map[string]interface{}) 
 	return repositories.ConversationRepository.Updates(sqls.DB(), id, columns)
 }
 
-func (s *conversationService) getLatestNotFinishedByCustomerID(db *gorm.DB, customerID int64) *models.Conversation {
+func (s *conversationService) getLatestNotFinishedByCustomerID(db *gorm.DB, customerID, channelID int64) *models.Conversation {
 	if customerID <= 0 {
 		return nil
 	}
 	cnd := sqls.NewCnd()
 	cnd.Eq("customer_id", customerID)
+	cnd.Eq("channel_id", channelID)
 	cnd.In("status", []enums.IMConversationStatus{
 		enums.IMConversationStatusAIServing,
 		enums.IMConversationStatusPending,
@@ -115,15 +116,27 @@ func (s *conversationService) Create(externalUser openidentity.ExternalUser, cha
 			return err
 		}
 		customerName := s.getCustomerName(ctx.Tx, customerID)
-		if existing := s.getLatestNotFinishedByCustomerID(ctx.Tx, customerID); existing != nil {
+		if existing := s.getLatestNotFinishedByCustomerID(ctx.Tx, customerID, channelID); existing != nil {
 			conversation = existing
+			updates := map[string]any{"updated_at": time.Now()}
 			if customerName != "" && existing.CustomerName != customerName {
-				if err := repositories.ConversationRepository.Updates(ctx.Tx, existing.ID, map[string]any{
-					"customer_name": customerName,
-					"updated_at":    time.Now(),
-				}); err != nil {
+				updates["customer_name"] = customerName
+			}
+			// 渠道绑定的 Agent 可能变更，复用会话时同步 Agent 及服务模式
+			if existing.AIAgentID != aiAgentID {
+				updates["ai_agent_id"] = aiAgentID
+				updates["service_mode"] = aiAgent.ServiceMode
+				updates["status"] = s.resolveInitialStatus(aiAgent.ServiceMode)
+			}
+			if len(updates) > 1 {
+				if err := repositories.ConversationRepository.Updates(ctx.Tx, existing.ID, updates); err != nil {
 					return err
 				}
+				conversation.AIAgentID = aiAgentID
+				conversation.ServiceMode = aiAgent.ServiceMode
+				conversation.Status = s.resolveInitialStatus(aiAgent.ServiceMode)
+				conversation.CustomerName = customerName
+			} else if customerName != "" {
 				conversation.CustomerName = customerName
 			}
 			return nil

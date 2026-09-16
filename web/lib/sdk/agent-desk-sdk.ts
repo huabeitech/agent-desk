@@ -29,6 +29,17 @@ type WidgetState = {
   frameUrl: URL | null
   animationDuration: number
   listenerBound?: boolean
+  launcherPos: { x: number; y: number } | null
+  launcherDragging: boolean
+  launcherDragStart: { x: number; y: number; px: number; py: number } | null
+  launcherMoved: boolean
+  launcherDocked: boolean
+  launcherDockSide: "left" | "right" | null
+  launcherExpanded: boolean
+  launcherHoverTimer: number | null
+  launcherResizeHandler: (() => void) | null
+  launcherContent: HTMLSpanElement | null
+  dockLabel: HTMLSpanElement | null
 }
 
 type WidgetConfigResponse = {
@@ -75,6 +86,20 @@ type FrameMessage =
     width: "380px",
   }
 
+  // 启动器（悬浮按钮）尺寸与交互常量
+  const LAUNCHER_SIZE = 64
+  const LAUNCHER_MARGIN = 24
+  // 移动距离超过该阈值视为拖拽而非点击
+  const DRAG_THRESHOLD = 6
+  // 距屏幕左/右边缘该距离内释放时自动吸附
+  const EDGE_SNAP_DISTANCE = 80
+  // 吸附后半隐藏状态可见宽度
+  const DOCK_VISIBLE_PX = 16
+  // 半隐藏状态在鼠标离开后延迟收回的时长
+  const AUTO_COLLAPSE_DELAY = 1500
+  // 拖拽后位置持久化 key（按 channelId 区分，避免不同渠道复用同一坐标）
+  const LAUNCHER_POS_STORAGE_KEY_PREFIX = "agent-desk:launcher-pos:"
+
   const existingState = window.__CS_AI_AGENT_WIDGET_STATE__ as WidgetState | undefined
   const state: WidgetState =
     existingState || {
@@ -92,6 +117,17 @@ type FrameMessage =
       frameConfig: null,
       frameUrl: null,
       animationDuration: 260,
+      launcherPos: null,
+      launcherDragging: false,
+      launcherDragStart: null,
+      launcherMoved: false,
+      launcherDocked: false,
+      launcherDockSide: null,
+      launcherExpanded: false,
+      launcherHoverTimer: null,
+      launcherResizeHandler: null,
+      launcherContent: null,
+      dockLabel: null,
     }
   if (!existingState) {
     window.__CS_AI_AGENT_WIDGET_STATE__ = state
@@ -441,6 +477,379 @@ type FrameMessage =
     }
   }
 
+  function getViewportSize() {
+    const w = typeof window.innerWidth === "number" ? window.innerWidth : 0
+    const h = typeof window.innerHeight === "number" ? window.innerHeight : 0
+    return { width: w, height: h }
+  }
+
+  // 持久化/读取悬浮按钮位置（localStorage）。
+  // 不同 channelId 用不同 key，避免多渠道互相覆盖。
+  function launcherPosStorageKey(): string | null {
+    const cfg = state.config
+    const id = cfg?.channelId
+    if (!id) {
+      return null
+    }
+    return `${LAUNCHER_POS_STORAGE_KEY_PREFIX}${id}`
+  }
+
+  type LauncherPersistedState = {
+    x: number
+    y: number
+    docked: boolean
+    dockSide: "left" | "right" | null
+  }
+
+  function saveLauncherState(
+    pos: { x: number; y: number },
+    docked: boolean,
+    dockSide: "left" | "right" | null,
+  ) {
+    if (typeof window === "undefined") {
+      return
+    }
+    try {
+      const key = launcherPosStorageKey()
+      if (!key) {
+        return
+      }
+      const storage = window.localStorage
+      if (!storage) {
+        return
+      }
+      storage.setItem(
+        key,
+        JSON.stringify({
+          x: pos.x,
+          y: pos.y,
+          docked: !!docked,
+          dockSide: dockSide ?? null,
+        }),
+      )
+    } catch {
+      // 无痕模式或被禁用时静默忽略
+    }
+  }
+
+  function loadLauncherState(): LauncherPersistedState | null {
+    if (typeof window === "undefined") {
+      return null
+    }
+    try {
+      const key = launcherPosStorageKey()
+      if (!key) {
+        return null
+      }
+      const storage = window.localStorage
+      if (!storage) {
+        return null
+      }
+      const raw = storage.getItem(key)
+      if (!raw) {
+        return null
+      }
+      const parsed = JSON.parse(raw) as {
+        x?: unknown
+        y?: unknown
+        docked?: unknown
+        dockSide?: unknown
+      }
+      const x = Number(parsed.x)
+      const y = Number(parsed.y)
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return null
+      }
+      const docked = parsed.docked === true
+      const dockSide =
+        parsed.dockSide === "left" || parsed.dockSide === "right"
+          ? parsed.dockSide
+          : null
+      return { x, y, docked, dockSide }
+    } catch {
+      return null
+    }
+  }
+
+  // 校验坐标是否在当前视口可见区内（按钮整体在屏幕内）。
+  function isLauncherPosVisible(pos: { x: number; y: number }) {
+    const vp = getViewportSize()
+    if (vp.width <= 0 || vp.height <= 0) {
+      return false
+    }
+    return (
+      pos.x >= 0 &&
+      pos.y >= 0 &&
+      pos.x + LAUNCHER_SIZE <= vp.width &&
+      pos.y + LAUNCHER_SIZE <= vp.height
+    )
+  }
+
+  // 初始化启动器位置：优先恢复上次记录的位置，否则按 config.position 默认放置。
+  function initLauncherPosition() {
+    if (state.launcherPos) {
+      return
+    }
+    const vp = getViewportSize()
+    // 视口尺寸尚未就绪（脚本在 head 中同步加载、body 未完成布局）时
+    // 暂不写入坐标，避免落到 (0,0) 左上角；由 ensureLauncherPosition
+    // 在首次布局/拖拽时补算。
+    if (vp.width <= 0 || vp.height <= 0) {
+      return
+    }
+    // 优先恢复上次记录的位置与停靠状态，但要校验仍在当前屏幕可见区内
+    // （窗口尺寸变化/外接显示器变更可能导致旧坐标越界）。
+    const saved = loadLauncherState()
+    if (saved && isLauncherPosVisible(saved)) {
+      state.launcherPos = { x: saved.x, y: saved.y }
+      state.launcherDocked = saved.docked
+      state.launcherDockSide = saved.docked ? saved.dockSide : null
+      state.launcherExpanded = false
+      return
+    }
+    const side = state.config?.position === "left" ? "left" : "right"
+    state.launcherPos = {
+      x:
+        side === "left"
+          ? LAUNCHER_MARGIN
+          : Math.max(0, vp.width - LAUNCHER_SIZE - LAUNCHER_MARGIN),
+      // 默认放屏幕右下角（position=left 则左下角）。
+      y: Math.max(0, vp.height - LAUNCHER_SIZE - LAUNCHER_MARGIN),
+    }
+    state.launcherDocked = false
+    state.launcherDockSide = null
+    state.launcherExpanded = false
+  }
+
+  // 确保坐标已初始化：若此前因视口尺寸为 0 而跳过，则在可读视口时补算。
+  function ensureLauncherPosition() {
+    if (state.launcherPos) {
+      return
+    }
+    initLauncherPosition()
+  }
+
+  function clampLauncherPos(pos: { x: number; y: number }) {
+    const vp = getViewportSize()
+    return {
+      x: Math.max(0, Math.min(Math.max(0, vp.width - LAUNCHER_SIZE), pos.x)),
+      y: Math.max(0, Math.min(Math.max(0, vp.height - LAUNCHER_SIZE), pos.y)),
+    }
+  }
+
+  // 应用启动器布局：top/left 像素定位 + 停靠/展开状态下的 transform
+  function applyLauncherLayout() {
+    const button = state.button
+    if (!button) {
+      return
+    }
+    // 视口可读但尚未初始化坐标时，先补算再定位。
+    ensureLauncherPosition()
+    if (!state.launcherPos) {
+      return
+    }
+    button.style.left = `${state.launcherPos.x}px`
+    button.style.top = `${state.launcherPos.y}px`
+
+    const isDockedCollapsed =
+      state.launcherDocked &&
+      !state.launcherExpanded &&
+      !state.launcherDragging
+
+    if (isDockedCollapsed) {
+      const offset = LAUNCHER_SIZE - DOCK_VISIBLE_PX
+      if (state.launcherDockSide === "right") {
+        button.style.transform = `translate3d(${offset}px, 0, 0)`
+      } else if (state.launcherDockSide === "left") {
+        button.style.transform = `translate3d(${-offset}px, 0, 0)`
+      } else {
+        button.style.transform = "translate3d(0, 0, 0)"
+      }
+    } else {
+      button.style.transform = "translate3d(0, 0, 0)"
+    }
+
+    // 切换停靠窄条文字与常规内容（图标+主文字）的显隐。
+    if (state.dockLabel) {
+      const showDockLabel = isDockedCollapsed
+      state.dockLabel.style.display = showDockLabel ? "flex" : "none"
+      // 外露 16px 在按钮的某一侧：右吸附时外露在按钮左端 16px，
+      // 文字须靠左对齐；左吸附时外露在按钮右端 16px，文字须靠右对齐。
+      // 否则文字居中落在按钮中段，会随按钮一起被 transform 移出视口。
+      if (showDockLabel) {
+        if (state.launcherDockSide === "right") {
+          state.dockLabel.style.margin = "0 auto 0 0"
+        } else if (state.launcherDockSide === "left") {
+          state.dockLabel.style.margin = "0 0 0 auto"
+        } else {
+          state.dockLabel.style.margin = "0 auto"
+        }
+      }
+    }
+    if (state.launcherContent) {
+      const showContent = !isDockedCollapsed
+      state.launcherContent.style.display = showContent ? "flex" : "none"
+    }
+  }
+
+  // 拖拽结束时判断是否吸附到屏幕左/右边缘
+  function checkEdgeSnap() {
+    if (!state.launcherPos) {
+      return
+    }
+    const vp = getViewportSize()
+    const pos = state.launcherPos
+    const distLeft = pos.x
+    const distRight = vp.width - (pos.x + LAUNCHER_SIZE)
+
+    if (distRight <= EDGE_SNAP_DISTANCE && distRight <= distLeft) {
+      state.launcherPos = {
+        x: Math.max(0, vp.width - LAUNCHER_SIZE),
+        y: pos.y,
+      }
+      state.launcherDocked = true
+      state.launcherDockSide = "right"
+      state.launcherExpanded = false
+    } else if (distLeft <= EDGE_SNAP_DISTANCE) {
+      state.launcherPos = { x: 0, y: pos.y }
+      state.launcherDocked = true
+      state.launcherDockSide = "left"
+      state.launcherExpanded = false
+    } else {
+      state.launcherDocked = false
+      state.launcherDockSide = null
+      state.launcherExpanded = false
+    }
+    applyLauncherLayout()
+    // 持久化最终位置与停靠状态，下次启动时恢复。
+    if (state.launcherPos) {
+      saveLauncherState(
+        state.launcherPos,
+        state.launcherDocked,
+        state.launcherDockSide,
+      )
+    }
+  }
+
+  function attachLauncherInteractions(button: HTMLButtonElement) {
+    button.addEventListener("pointerdown", (event: PointerEvent) => {
+      if (event.button !== 0 && event.pointerType === "mouse") {
+        return
+      }
+      // 拖拽起手前确保坐标已初始化，避免视口尺寸为 0 时跳变。
+      ensureLauncherPosition()
+      if (!state.launcherPos) {
+        return
+      }
+      try {
+        button.setPointerCapture(event.pointerId)
+      } catch {
+        // 部分环境（如测试沙盒）不支持 setPointerCapture，忽略即可
+      }
+      state.launcherDragging = true
+      state.launcherMoved = false
+      state.launcherDragStart = {
+        x: event.clientX,
+        y: event.clientY,
+        px: state.launcherPos.x,
+        py: state.launcherPos.y,
+      }
+      // 拖拽期间禁用过渡，避免跟随指针时出现延迟
+      button.style.transition = "none"
+    })
+
+    button.addEventListener("pointermove", (event: PointerEvent) => {
+      if (!state.launcherDragging || !state.launcherDragStart || !state.launcherPos) {
+        return
+      }
+      const dx = event.clientX - state.launcherDragStart.x
+      const dy = event.clientY - state.launcherDragStart.y
+      if (!state.launcherMoved && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+        state.launcherMoved = true
+        // 拖拽开始时退出半隐藏状态以便用户看清按钮
+        if (state.launcherDocked && !state.launcherExpanded) {
+          state.launcherExpanded = true
+          applyLauncherLayout()
+        }
+      }
+      if (state.launcherMoved) {
+        state.launcherPos = clampLauncherPos({
+          x: state.launcherDragStart.px + dx,
+          y: state.launcherDragStart.py + dy,
+        })
+        applyLauncherLayout()
+      }
+    })
+
+    const endDrag = (event: PointerEvent) => {
+      if (!state.launcherDragging) {
+        return
+      }
+      state.launcherDragging = false
+      state.launcherDragStart = null
+      button.style.transition = ""
+      try {
+        button.releasePointerCapture(event.pointerId)
+      } catch {
+        // 同上，忽略不支持的环境
+      }
+      if (state.launcherMoved) {
+        // 拖拽结束，做边缘吸附与半隐藏
+        checkEdgeSnap()
+      }
+    }
+    button.addEventListener("pointerup", endDrag)
+    button.addEventListener("pointercancel", endDrag)
+
+    button.addEventListener("pointerenter", () => {
+      if (!state.launcherDocked || state.launcherDragging) {
+        return
+      }
+      if (state.launcherHoverTimer) {
+        window.clearTimeout(state.launcherHoverTimer)
+        state.launcherHoverTimer = null
+      }
+      if (!state.launcherExpanded) {
+        state.launcherExpanded = true
+        applyLauncherLayout()
+      }
+    })
+
+    button.addEventListener("pointerleave", () => {
+      if (!state.launcherDocked || !state.launcherExpanded || state.launcherDragging) {
+        return
+      }
+      if (state.launcherHoverTimer) {
+        window.clearTimeout(state.launcherHoverTimer)
+      }
+      state.launcherHoverTimer = window.setTimeout(() => {
+        state.launcherExpanded = false
+        state.launcherHoverTimer = null
+        applyLauncherLayout()
+      }, AUTO_COLLAPSE_DELAY)
+    })
+  }
+
+  function handleLauncherResize() {
+    ensureLauncherPosition()
+    if (!state.launcherPos) {
+      return
+    }
+    state.launcherPos = clampLauncherPos(state.launcherPos)
+    if (state.launcherDocked) {
+      const vp = getViewportSize()
+      if (state.launcherDockSide === "right") {
+        state.launcherPos = {
+          x: Math.max(0, vp.width - LAUNCHER_SIZE),
+          y: state.launcherPos.y,
+        }
+      } else if (state.launcherDockSide === "left") {
+        state.launcherPos = { x: 0, y: state.launcherPos.y }
+      }
+    }
+    applyLauncherLayout()
+  }
+
   function createLauncher() {
     if (state.button) {
       return state.button
@@ -459,6 +868,8 @@ type FrameMessage =
       "M21 16v2a4 4 0 0 1-4 4h-5",
     ]
     const text = document.createElement("span")
+    const content = document.createElement("span") // 常规态容器：图标 + 主文字
+    const dockLabel = document.createElement("span") // 停靠半隐藏态外露窄条文字
     button.type = "button"
     button.dataset.agentDeskWidget = "launcher"
     button.setAttribute("aria-label", config.title || getDefaultWidgetTitle(config))
@@ -479,18 +890,49 @@ type FrameMessage =
     })
     text.textContent = getLauncherText(config)
     text.style.display = "block"
+    content.style.display = "flex"
+    content.style.flexDirection = "column"
+    content.style.alignItems = "center"
+    content.style.justifyContent = "center"
+    content.style.gap = "4px"
+    content.style.width = "100%"
+    content.style.height = "100%"
+    content.appendChild(icon)
+    content.appendChild(text)
+
+    // 停靠半隐藏态外露窄条：竖排显示“客服/Support”。
+    // 外露宽度 DOCK_VISIBLE_PX(16px)，竖排文字字号 12px，每字一行，刚好落入窄条。
+    dockLabel.textContent = getLauncherText(config)
+    dockLabel.style.display = "none"
+    dockLabel.style.flexDirection = "column"
+    dockLabel.style.alignItems = "center"
+    dockLabel.style.justifyContent = "center"
+    dockLabel.style.width = `${DOCK_VISIBLE_PX}px`
+    dockLabel.style.height = "100%"
+    dockLabel.style.margin = "0 auto"
+    dockLabel.style.padding = "0"
+    dockLabel.style.fontSize = "12px"
+    dockLabel.style.lineHeight = "1"
+    dockLabel.style.fontWeight = "600"
+    dockLabel.style.letterSpacing = "1px"
+    dockLabel.style.color = "#fff"
+    dockLabel.style.whiteSpace = "nowrap"
+    dockLabel.style.writingMode = "vertical-rl"
+    dockLabel.style.textOrientation = "upright"
+
     button.style.position = "fixed"
-    button.style.bottom = "24px"
-    button.style.right = config.position === "left" ? "" : "24px"
-    button.style.left = config.position === "left" ? "24px" : ""
+    button.style.top = "0px"
+    button.style.left = "0px"
+    button.style.right = ""
+    button.style.bottom = ""
     button.style.zIndex = "2147483000"
     button.style.display = "inline-flex"
     button.style.flexDirection = "column"
     button.style.alignItems = "center"
     button.style.justifyContent = "center"
-    button.style.gap = "4px"
-    button.style.width = "64px"
-    button.style.height = "64px"
+    button.style.gap = "0"
+    button.style.width = `${LAUNCHER_SIZE}px`
+    button.style.height = `${LAUNCHER_SIZE}px`
     button.style.border = "0"
     button.style.borderRadius = "999px"
     button.style.padding = "0"
@@ -499,10 +941,25 @@ type FrameMessage =
     button.style.font = "600 13px/1 sans-serif"
     button.style.boxShadow = "0 18px 40px rgba(15, 35, 65, 0.24)"
     button.style.cursor = "pointer"
-    button.appendChild(icon)
-    button.appendChild(text)
+    button.style.transition =
+      "transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease, background 240ms ease"
+    // 触摸拖拽时禁用默认行为（如文本选区、长按菜单）
+    button.style.touchAction = "none"
+    button.appendChild(content)
+    button.appendChild(dockLabel)
+    state.launcherContent = content
+    state.dockLabel = dockLabel
+
+    initLauncherPosition()
+    applyLauncherLayout()
+    attachLauncherInteractions(button)
 
     button.addEventListener("click", () => {
+      // 拖拽刚结束，吞掉本次 click，避免误触打开窗口
+      if (state.launcherMoved) {
+        state.launcherMoved = false
+        return
+      }
       if (state.isOpen) {
         state.isOpen = false
         syncFrameVisibility()
@@ -512,8 +969,44 @@ type FrameMessage =
       void openWidget()
     })
 
+    if (!state.launcherResizeHandler) {
+      state.launcherResizeHandler = handleLauncherResize
+      window.addEventListener("resize", state.launcherResizeHandler)
+      window.addEventListener("orientationchange", state.launcherResizeHandler)
+    }
+
     document.body.appendChild(button)
     state.button = button
+
+    // 兜底：脚本可能在 body 完成布局前就执行（如 head 中同步加载），
+    // 导致首次 initLauncherPosition 因视口尺寸为 0 而跳过。这里在下一帧
+    // 以及 window load 后各补算一次，确保坐标落在右边缘中部而非左上角。
+    const scheduleRelayout = (handler: () => void) => {
+      if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(() => {
+          try {
+            handler()
+          } catch {
+            // 忽略
+          }
+        })
+      } else {
+        window.setTimeout(handler, 0)
+      }
+    }
+    scheduleRelayout(() => {
+      ensureLauncherPosition()
+      applyLauncherLayout()
+    })
+    if (document.readyState !== "complete") {
+      const onLoad = () => {
+        window.removeEventListener("load", onLoad)
+        ensureLauncherPosition()
+        applyLauncherLayout()
+      }
+      window.addEventListener("load", onLoad)
+    }
+
     return button
   }
 
@@ -545,6 +1038,15 @@ type FrameMessage =
 
   function destroy() {
     clearFrameTimers()
+    if (state.launcherHoverTimer) {
+      window.clearTimeout(state.launcherHoverTimer)
+      state.launcherHoverTimer = null
+    }
+    if (state.launcherResizeHandler) {
+      window.removeEventListener("resize", state.launcherResizeHandler)
+      window.removeEventListener("orientationchange", state.launcherResizeHandler)
+      state.launcherResizeHandler = null
+    }
     if (state.frame?.parentNode) {
       state.frame.parentNode.removeChild(state.frame)
     }
@@ -561,6 +1063,15 @@ type FrameMessage =
     state.configLoading = false
     state.frameConfig = null
     state.frameUrl = null
+    state.launcherPos = null
+    state.launcherDragging = false
+    state.launcherDragStart = null
+    state.launcherMoved = false
+    state.launcherDocked = false
+    state.launcherDockSide = null
+    state.launcherExpanded = false
+    state.launcherContent = null
+    state.dockLabel = null
   }
 
   function openWidget() {

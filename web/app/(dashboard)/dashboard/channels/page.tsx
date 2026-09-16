@@ -1,13 +1,6 @@
 "use client"
 
 import {
-  Building2Icon,
-  MessagesSquareIcon,
-  MessageSquareMoreIcon,
-  SendIcon,
-} from "lucide-react"
-
-import {
   createDashboardStatusColumn,
   DashboardCrudPage,
 } from "@/components/dashboard/crud"
@@ -21,26 +14,11 @@ import {
   type AdminChannel,
   type CreateAdminChannelPayload,
 } from "@/lib/api/admin"
+import { ChannelTypeIcon, getChannelTypeLabel } from "@/lib/channel-i18n"
 import { getEnumOptions } from "@/lib/enums"
 import { Status, StatusLabels } from "@/lib/generated/enums"
 import { useI18n } from "@/i18n/provider"
 import { EditDialog } from "./_components/edit"
-
-function getChannelTypeLabel(channelType: string, t: (key: string) => string) {
-  if (channelType === "wechat_mp") {
-    return t("channel.typeWechatMp")
-  }
-  if (channelType === "wxwork_kf") {
-    return t("channel.typeWxworkKf")
-  }
-  if (channelType === "telegram") {
-    return t("channel.typeTelegram")
-  }
-  if (channelType === "zalo_oa") {
-    return t("channel.typeZaloOa")
-  }
-  return t("channel.typeWeb")
-}
 
 function getStatusLabel(status: Status, t: (key: string) => string) {
   if (status === Status.Disabled) {
@@ -50,19 +28,6 @@ function getStatusLabel(status: Status, t: (key: string) => string) {
     return t("status.deleted")
   }
   return t("status.ok")
-}
-
-function ChannelIcon({ channelType }: { channelType: string }) {
-  if (channelType === "wechat_mp") {
-    return <MessagesSquareIcon className="size-4" />
-  }
-  if (channelType === "wxwork_kf") {
-    return <MessageSquareMoreIcon className="size-4" />
-  }
-  if (channelType === "telegram" || channelType === "zalo_oa") {
-    return <SendIcon className="size-4" />
-  }
-  return <Building2Icon className="size-4" />
 }
 
 export default function DashboardChannelsPage() {
@@ -78,6 +43,7 @@ export default function DashboardChannelsPage() {
     { value: "all", label: t("channel.allTypes") },
     { value: "web", label: t("channel.typeWeb") },
     { value: "telegram", label: t("channel.typeTelegram") },
+    { value: "discord", label: t("channel.typeDiscord") },
     { value: "zalo_oa", label: t("channel.typeZaloOa") },
     { value: "wechat_mp", label: t("channel.typeWechatMp") },
     { value: "wxwork_kf", label: t("channel.typeWxworkKf") },
@@ -128,7 +94,7 @@ export default function DashboardChannelsPage() {
           render: (item) => (
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-md bg-muted">
-                <ChannelIcon channelType={item.channelType} />
+                <ChannelTypeIcon channelType={item.channelType} className="size-4" />
               </div>
               <div>
                 <div className="font-medium">{item.name}</div>

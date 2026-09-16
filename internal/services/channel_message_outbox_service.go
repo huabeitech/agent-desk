@@ -250,16 +250,90 @@ func (s *channelMessageOutboxService) EnqueueZaloOAMessage(conversation *models.
 	return nil
 }
 
+func (s *channelMessageOutboxService) EnqueueDiscordMessage(conversation *models.Conversation, message *models.Message) error {
+	if conversation == nil || message == nil {
+		return nil
+	}
+	channel := ChannelService.Get(conversation.ChannelID)
+	if channel == nil || channel.ChannelType != enums.ChannelTypeDiscord {
+		return nil
+	}
+	if message.SenderType != enums.IMSenderTypeAgent && message.SenderType != enums.IMSenderTypeAI {
+		return nil
+	}
+	if message.MessageType != enums.IMMessageTypeText && message.MessageType != enums.IMMessageTypeHTML && message.MessageType != enums.IMMessageTypeImage && message.MessageType != enums.IMMessageTypeAttachment {
+		return nil
+	}
+	if existing := s.GetByMessageID(enums.ChannelTypeDiscord, message.ID); existing != nil {
+		return nil
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"conversationId": conversation.ID,
+		"messageId":      message.ID,
+		"messageType":    message.MessageType,
+		"content":        strings.TrimSpace(message.Content),
+		"payload":        strings.TrimSpace(message.Payload),
+		"senderId":       message.SenderID,
+	})
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	err = s.Create(&models.ChannelMessageOutbox{
+		ChannelType:    enums.ChannelTypeDiscord,
+		ConversationID: conversation.ID,
+		MessageID:      message.ID,
+		Payload:        string(payload),
+		SendStatus:     string(enums.ChannelMessageOutboxStatusPending),
+		AuditFields: models.AuditFields{
+			CreatedAt:      now,
+			CreateUserID:   message.UpdateUserID,
+			CreateUserName: message.UpdateUserName,
+			UpdatedAt:      now,
+			UpdateUserID:   message.UpdateUserID,
+			UpdateUserName: message.UpdateUserName,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered from panic in discord outbound dispatch", "error", r)
+			}
+		}()
+		DiscordOutboundService.DispatchPendingOutbox()
+	}()
+
+	return nil
+}
+
 func (s *channelMessageOutboxService) ListPending(channelType string, limit int) []models.ChannelMessageOutbox {
 	if limit <= 0 {
 		limit = 20
 	}
+	// 只取"现在就可以尝试发送"的记录，保证每批取出的记录都会被真正尝试、投递循环必然收敛：
+	//   pending：无重试计划限制（新入队或人工重试后 next_retry_at 为空）；
+	//   failed：必须存在重试计划且已到期。达到最大重试次数（next_retry_at 为空）的记录
+	//   停止自动重试，等待管理端人工处置；退避窗口内的记录不占用批次。
+	now := time.Now()
 	cnd := sqls.NewCnd().
 		Eq("channel_type", strings.TrimSpace(channelType)).
-		In("send_status", []string{
-			string(enums.ChannelMessageOutboxStatusPending),
-			string(enums.ChannelMessageOutboxStatusFailed),
-		}).
+		Where(
+			"((send_status = ? AND (next_retry_at IS NULL OR next_retry_at <= ?)) "+
+				"OR (send_status = ? AND next_retry_at IS NOT NULL AND next_retry_at <= ?))",
+			string(enums.ChannelMessageOutboxStatusPending), now,
+			string(enums.ChannelMessageOutboxStatusFailed), now,
+		).
+		// Only rows whose backoff has elapsed are eligible; ordering by
+		// next_retry_at keeps a backlog of not-yet-due retries from starving
+		// newer pending sends.
+		Lte("next_retry_at", now).
+		Asc("next_retry_at").
 		Asc("id").
 		Limit(limit)
 	return s.Find(cnd)

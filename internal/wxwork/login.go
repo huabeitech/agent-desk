@@ -48,14 +48,15 @@ func BuildLoginURL(state string) (string, error) {
 	if strings.TrimSpace(wxCfg.OAuthRedirect) == "" {
 		return "", i18nx.Errorf("error.e0107")
 	}
-	if strings.TrimSpace(wxCfg.AgentID) == "" {
+	agentID := DefaultAgentID()
+	if strings.TrimSpace(agentID) == "" {
 		return "", i18nx.Errorf("error.e0093")
 	}
 	return fmt.Sprintf(
 		"https://open.weixin.qq.com/connect/oauth2/authorize?appid=%s&redirect_uri=%s&response_type=code&scope=snsapi_privateinfo&agentid=%s&state=%s#wechat_redirect",
 		url.QueryEscape(strings.TrimSpace(wxCfg.CorpID)),
 		url.QueryEscape(strings.TrimSpace(wxCfg.OAuthRedirect)),
-		url.QueryEscape(strings.TrimSpace(wxCfg.AgentID)),
+		url.QueryEscape(strings.TrimSpace(agentID)),
 		url.QueryEscape(strings.TrimSpace(state)),
 	), nil
 }
@@ -67,13 +68,14 @@ func BuildQRCodeLoginURL(state string) (string, error) {
 	if strings.TrimSpace(wxCfg.OAuthRedirect) == "" {
 		return "", i18nx.Errorf("error.e0107")
 	}
-	if strings.TrimSpace(wxCfg.AgentID) == "" {
+	agentID := DefaultAgentID()
+	if strings.TrimSpace(agentID) == "" {
 		return "", i18nx.Errorf("error.e0093")
 	}
 	return fmt.Sprintf(
 		"https://open.work.weixin.qq.com/wwopen/sso/qrConnect?appid=%s&agentid=%s&redirect_uri=%s&state=%s",
 		url.QueryEscape(strings.TrimSpace(wxCfg.CorpID)),
-		url.QueryEscape(strings.TrimSpace(wxCfg.AgentID)),
+		url.QueryEscape(strings.TrimSpace(agentID)),
 		url.QueryEscape(strings.TrimSpace(wxCfg.OAuthRedirect)),
 		url.QueryEscape(strings.TrimSpace(state)),
 	), nil
@@ -202,7 +204,7 @@ func GetUserDetail(code string) (*LoginUser, error) {
 		return nil, i18nx.Errorf("error.e0202")
 	}
 
-	oauthClient := w.GetOauth()
+	oauthClient := defaultWork.GetOauth()
 	userInfo, err := oauthClient.GetUserInfo(code)
 	if err != nil {
 		return nil, err
@@ -230,7 +232,7 @@ func GetUserDetail(code string) (*LoginUser, error) {
 		}
 	}
 
-	if profile, profileErr := w.GetAddressList().UserGet(ret.UserID); profileErr == nil {
+	if profile, profileErr := defaultWork.GetAddressList().UserGet(ret.UserID); profileErr == nil {
 		ret.UserProfile = profile
 		if strings.TrimSpace(profile.Name) != "" {
 			ret.Name = strings.TrimSpace(profile.Name)

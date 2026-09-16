@@ -224,6 +224,8 @@ func registerDashboardChannelRoutes(group *gin.RouterGroup) {
 	group.POST("/update", dashboard.ChannelPostUpdate)
 	group.POST("/update_status", dashboard.ChannelPostUpdate_status)
 	group.Any("/wxwork/kf/accounts", dashboard.ChannelAnyWxworkKfAccounts)
+	group.GET("/wxwork/api_apps", dashboard.ChannelAnyWxworkApiApps)
+	group.POST("/wxwork/kf/test_read_messages", dashboard.ChannelPostWxworkKfTest_read_messages)
 	group.Any("/wxwork/outbox/failed/list", dashboard.ChannelAnyWxworkOutboxFailedList)
 	group.POST("/wxwork/outbox/retry", dashboard.ChannelPostWxworkOutboxRetry)
 	group.POST("/wxwork/outbox/ignore", dashboard.ChannelPostWxworkOutboxIgnore)
@@ -340,6 +342,7 @@ func registerDashboardKnowledgeDirectoryRoutes(group *gin.RouterGroup) {
 func registerDashboardKnowledgeDocumentRoutes(group *gin.RouterGroup) {
 	group.GET("/:id", dashboard.KnowledgeDocumentGetBy)
 	group.POST("/batch_delete", dashboard.KnowledgeDocumentPostBatch_delete)
+	group.POST("/batch_build", dashboard.KnowledgeDocumentPostBatch_build)
 	group.POST("/batch_move", dashboard.KnowledgeDocumentPostBatch_move)
 	group.POST("/create", dashboard.KnowledgeDocumentPostCreate)
 	group.POST("/delete", dashboard.KnowledgeDocumentPostDelete)
@@ -422,6 +425,11 @@ func registerDashboardMCPRoutes(group *gin.RouterGroup) {
 	group.POST("/test_connection", dashboard.MCPPostTest_connection)
 }
 
+func registerDashboardSystemLogRoutes(group *gin.RouterGroup) {
+	group.GET("/:id", dashboard.SystemLogGetBy)
+	group.Any("/list", dashboard.SystemLogAnyList)
+}
+
 func registerThirdWechatRoutes(group *gin.RouterGroup) {
 	group.GET("/callback", third.WechatGetCallback)
 	group.POST("/callback", third.WechatPostCallback)
@@ -435,4 +443,9 @@ func registerThirdTelegramRoutes(group *gin.RouterGroup) {
 func registerThirdZaloRoutes(group *gin.RouterGroup) {
 	group.POST("/webhook", third.ZaloPostWebhook)
 	group.POST("/webhook/:channel_id", third.ZaloPostWebhook)
+}
+
+func registerThirdDiscordRoutes(group *gin.RouterGroup) {
+	group.POST("/webhook", third.DiscordPostWebhook)
+	group.POST("/webhook/:channel_id", third.DiscordPostWebhook)
 }

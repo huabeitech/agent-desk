@@ -13,14 +13,22 @@ import (
 	svc "agent-desk/internal/services"
 )
 
-func (s *aiReplyService) resolveReplyTimeout(aiAgent models.AIAgent) time.Duration {
-	if aiAgent.ReplyTimeoutSeconds <= 0 {
-		return time.Duration(defaultAIReplyAsyncTimeoutSeconds) * time.Second
+// resolveReplyTimeout 解析 AI 回复超时时长：接入渠道配置优先，其次智能体配置，最后使用系统默认。
+func (s *aiReplyService) resolveReplyTimeout(channel *models.Channel, aiAgent models.AIAgent) time.Duration {
+	seconds := 0
+	if channel != nil && channel.AIReplyTimeoutSeconds > 0 {
+		seconds = channel.AIReplyTimeoutSeconds
 	}
-	if aiAgent.ReplyTimeoutSeconds > maxAIReplyAsyncTimeoutSeconds {
-		return time.Duration(maxAIReplyAsyncTimeoutSeconds) * time.Second
+	if seconds <= 0 && aiAgent.ReplyTimeoutSeconds > 0 {
+		seconds = aiAgent.ReplyTimeoutSeconds
 	}
-	return time.Duration(aiAgent.ReplyTimeoutSeconds) * time.Second
+	if seconds <= 0 {
+		seconds = models.DefaultAIReplyTimeoutSeconds
+	}
+	if seconds > maxAIReplyAsyncTimeoutSeconds {
+		seconds = maxAIReplyAsyncTimeoutSeconds
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func (s *aiReplyService) TriggerReplyAsync(conversation models.Conversation, message models.Message) {
@@ -29,8 +37,9 @@ func (s *aiReplyService) TriggerReplyAsync(conversation models.Conversation, mes
 		if aiAgent == nil || aiAgent.Status != enums.StatusOk {
 			return
 		}
+		channel := svc.ChannelService.Get(conversation.ChannelID)
 		startedAt := time.Now()
-		timeout := s.resolveReplyTimeout(*aiAgent)
+		timeout := s.resolveReplyTimeout(channel, *aiAgent)
 		ctx, cancel := context.WithTimeout(tracex.ContextWithRequestID(context.Background(), message.RequestID), timeout)
 		defer cancel()
 		if err := s.TriggerReply(ctx, conversation, message, *aiAgent); err != nil {
@@ -40,6 +49,7 @@ func (s *aiReplyService) TriggerReplyAsync(conversation models.Conversation, mes
 				"timeout_ms", timeout.Milliseconds(),
 				"elapsed_ms", time.Since(startedAt).Milliseconds(),
 				"error", err)
+			svc.MessageService.CompleteAIReplyPlaceholderAsFailed(&conversation, aiAgent, &message, message.RequestID)
 		}
 	}()
 }
@@ -58,9 +68,12 @@ func (s *aiReplyService) TriggerReply(ctx context.Context, conversation models.C
 	if s.eligibility != nil && !s.eligibility.CanReply(conversation, message, aiAgent) {
 		return nil
 	}
-	if !IsAIAgentRolloutEligible(conversation, aiAgent, svc.ChannelService.Get(conversation.ChannelID)) {
+	channel := svc.ChannelService.Get(conversation.ChannelID)
+	if !IsAIAgentRolloutEligible(conversation, aiAgent, channel) {
 		return nil
 	}
+	// 正式回复生成前先发送占位提示，生成后由回复提交环节按渠道能力原地替换或追加新消息
+	svc.MessageService.SendAIReplyPlaceholder(&conversation, &aiAgent, &message, channel, message.RequestID)
 	if pendingInterrupt := svc.ConversationInterruptService.FindLatestPendingByConversationID(conversation.ID); pendingInterrupt != nil {
 		replyCtx.PendingInterrupt = pendingInterrupt
 		return s.resumePendingInterrupt(ctx, replyCtx)
@@ -108,6 +121,9 @@ func (s *aiReplyService) executeReply(ctx context.Context, replyCtx aiReplyConte
 		if err != nil {
 			return err
 		}
+		return nil
 	}
+	// 工作流执行完成但未产出回复文本，补发失败提示避免占位消息悬挂
+	svc.MessageService.CompleteAIReplyPlaceholderAsFailed(&replyCtx.Conversation, &replyCtx.AIAgent, &replyCtx.Message, replyCtx.Message.RequestID)
 	return nil
 }

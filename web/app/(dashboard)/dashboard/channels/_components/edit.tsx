@@ -23,14 +23,17 @@ import {
   type AIAgent,
   type AdminChannel,
   type CreateAdminChannelPayload,
+  type WxWorkApiApp,
   type WxWorkKFAccount,
   fetchAIAgentsAll,
   fetchChannel,
+  fetchWxWorkApiApps,
   fetchWxWorkKFAccounts,
 	rollbackChannelAIAgentRollout,
   resetChannelUserTokenSecret,
 } from "@/lib/api/admin"
 import { useI18n } from "@/i18n/provider"
+import { WxWorkReadTestButton } from "./read-test-button"
 
 type ChannelFormDialogProps = {
   open: boolean
@@ -73,6 +76,13 @@ type ZaloOAChannelConfig = {
   webhookSecret?: string
 }
 
+type DiscordChannelConfig = {
+  guildId?: string
+  guildName?: string
+  botToken?: string
+  webhookSecret?: string
+}
+
 function getDefaultWebChannelConfig(t: Translate): Required<WebChannelConfig> {
   return {
     title: t("channel.defaultTitleWeb"),
@@ -87,11 +97,19 @@ function getDefaultWebChannelConfig(t: Translate): Required<WebChannelConfig> {
 function createSchema(t: Translate) {
   return z
     .object({
-      channelType: z.enum(["web", "wechat_mp", "wxwork_kf", "telegram", "zalo_oa"], t("channel.typeRequired")),
+      channelType: z.enum(["web", "wechat_mp", "wxwork_kf", "telegram", "zalo_oa", "discord"], t("channel.typeRequired")),
       aiAgentId: z.string().trim().regex(/^\d+$/, t("channel.agentRequired")),
 		aiAgentRolloutPercent: z.coerce.number().int().min(1).max(100),
+      aiReplyPlaceholder: z.string().trim().max(255, t("channel.aiReplyPlaceholderTooLong")),
+      aiReplyTimeoutSeconds: z.coerce
+        .number()
+        .int(t("channel.aiReplyTimeoutInvalid"))
+        .min(0, t("channel.aiReplyTimeoutInvalid"))
+        .max(600, t("channel.aiReplyTimeoutInvalid")),
+      aiReplyTimeoutNotice: z.string().trim().max(500, t("channel.aiReplyTimeoutNoticeTooLong")),
       name: z.string().trim().min(1, t("channel.nameRequired")),
       openKfId: z.string().trim(),
+      wxAgentId: z.string().trim(),
       botToken: z.string().trim(),
       botUsername: z.string().trim(),
       webhookSecret: z.string().trim(),
@@ -99,6 +117,9 @@ function createSchema(t: Translate) {
       zaloOaId: z.string().trim(),
       zaloAccessToken: z.string().trim(),
       zaloSecretKey: z.string().trim(),
+      discordGuildId: z.string().trim(),
+      discordGuildName: z.string().trim(),
+      discordBotToken: z.string().trim(),
       widgetTitle: z.string().trim(),
       widgetSubtitle: z.string().trim(),
       widgetThemeColor: z.string().trim(),
@@ -113,6 +134,13 @@ function createSchema(t: Translate) {
           code: "custom",
           path: ["openKfId"],
           message: t("channel.wxworkAccountRequired"),
+        })
+      }
+      if (values.channelType === "wxwork_kf" && !values.wxAgentId.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["wxAgentId"],
+          message: t("channel.wxworkAppRequired"),
         })
       }
       if (values.channelType === "telegram" && !values.botToken.trim()) {
@@ -133,11 +161,15 @@ function createSchema(t: Translate) {
 }
 
 type EditForm = {
-  channelType: "web" | "wechat_mp" | "wxwork_kf" | "telegram" | "zalo_oa"
+  channelType: "web" | "wechat_mp" | "wxwork_kf" | "telegram" | "zalo_oa" | "discord"
   aiAgentId: string
 	aiAgentRolloutPercent: number
+  aiReplyPlaceholder: string
+  aiReplyTimeoutSeconds: number
+  aiReplyTimeoutNotice: string
   name: string
   openKfId: string
+  wxAgentId: string
   botToken: string
   botUsername: string
   webhookSecret: string
@@ -145,6 +177,9 @@ type EditForm = {
   zaloOaId: string
   zaloAccessToken: string
   zaloSecretKey: string
+  discordGuildId: string
+  discordGuildName: string
+  discordBotToken: string
   widgetTitle: string
   widgetSubtitle: string
   widgetThemeColor: string
@@ -160,8 +195,12 @@ function createEmptyForm(t: Translate): EditForm {
     channelType: "web",
     aiAgentId: "",
 		aiAgentRolloutPercent: 100,
+    aiReplyPlaceholder: "",
+    aiReplyTimeoutSeconds: 0,
+    aiReplyTimeoutNotice: "",
     name: "",
     openKfId: "",
+    wxAgentId: "",
     botToken: "",
     botUsername: "",
     webhookSecret: "",
@@ -169,6 +208,9 @@ function createEmptyForm(t: Translate): EditForm {
     zaloOaId: "",
     zaloAccessToken: "",
     zaloSecretKey: "",
+    discordGuildId: "",
+    discordGuildName: "",
+    discordBotToken: "",
     widgetTitle: defaultWebChannelConfig.title,
     widgetSubtitle: defaultWebChannelConfig.subtitle,
     widgetThemeColor: defaultWebChannelConfig.themeColor,
@@ -179,15 +221,18 @@ function createEmptyForm(t: Translate): EditForm {
   }
 }
 
-function parseOpenKfId(configJson: string): string {
+function parseWxWorkKfConfig(configJson: string): { openKfId: string; agentId: string } {
   if (!configJson.trim()) {
-    return ""
+    return { openKfId: "", agentId: "" }
   }
   try {
-    const parsed = JSON.parse(configJson) as { openKfId?: string }
-    return typeof parsed.openKfId === "string" ? parsed.openKfId.trim() : ""
+    const parsed = JSON.parse(configJson) as { openKfId?: string; agentId?: string }
+    return {
+      openKfId: typeof parsed.openKfId === "string" ? parsed.openKfId.trim() : "",
+      agentId: typeof parsed.agentId === "string" ? parsed.agentId.trim() : "",
+    }
   } catch {
-    return ""
+    return { openKfId: "", agentId: "" }
   }
 }
 
@@ -215,6 +260,21 @@ function parseZaloOAChannelConfig(configJson: string): ZaloOAChannelConfig {
       secretKey: parsed.secretKey?.trim() || "",
       accessToken: parsed.accessToken?.trim() || "",
       refreshToken: parsed.refreshToken?.trim() || "",
+      webhookSecret: parsed.webhookSecret?.trim() || "",
+    }
+  } catch {
+    return {}
+  }
+}
+
+function parseDiscordChannelConfig(configJson: string): DiscordChannelConfig {
+  if (!configJson.trim()) return {}
+  try {
+    const parsed = JSON.parse(configJson) as DiscordChannelConfig
+    return {
+      guildId: parsed.guildId?.trim() || "",
+      guildName: parsed.guildName?.trim() || "",
+      botToken: parsed.botToken?.trim() || "",
       webhookSecret: parsed.webhookSecret?.trim() || "",
     }
   } catch {
@@ -276,6 +336,7 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
   const isWechatMP = item.channelType === "wechat_mp"
   const isTelegram = item.channelType === "telegram"
   const isZaloOA = item.channelType === "zalo_oa"
+  const isDiscord = item.channelType === "discord"
   const webConfig = parseWebChannelConfig(item.configJson, t)
   const wechatConfig = isWechatMP
     ? parseWechatMPChannelConfig(item.configJson, t)
@@ -286,6 +347,10 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
   const zaloConfig = isZaloOA
     ? parseZaloOAChannelConfig(item.configJson)
     : null
+  const discordConfig = isDiscord
+    ? parseDiscordChannelConfig(item.configJson)
+    : null
+  const wxWorkConfig = parseWxWorkKfConfig(item.configJson)
   return {
     channelType:
       item.channelType === "wxwork_kf"
@@ -294,20 +359,33 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
           ? "telegram"
           : item.channelType === "zalo_oa"
             ? "zalo_oa"
-            : item.channelType === "wechat_mp"
-              ? "wechat_mp"
-              : "web",
+            : item.channelType === "discord"
+              ? "discord"
+              : item.channelType === "wechat_mp"
+                ? "wechat_mp"
+                : "web",
     aiAgentId: item.aiAgentId > 0 ? String(item.aiAgentId) : "",
 		aiAgentRolloutPercent: item.aiAgentRolloutPercent || 100,
+    aiReplyPlaceholder: item.aiReplyPlaceholder || "",
+    aiReplyTimeoutSeconds: item.aiReplyTimeoutSeconds || 0,
+    aiReplyTimeoutNotice: item.aiReplyTimeoutNotice || "",
     name: item.name,
-    openKfId: parseOpenKfId(item.configJson),
+    openKfId: wxWorkConfig.openKfId,
+    wxAgentId: wxWorkConfig.agentId,
     botToken: telegramConfig?.botToken ?? "",
     botUsername: telegramConfig?.botUsername ?? "",
-    webhookSecret: telegramConfig?.webhookSecret ?? zaloConfig?.webhookSecret ?? "",
+    webhookSecret:
+      telegramConfig?.webhookSecret ??
+      zaloConfig?.webhookSecret ??
+      discordConfig?.webhookSecret ??
+      "",
     zaloAppId: zaloConfig?.appId ?? "",
     zaloOaId: zaloConfig?.oaId ?? "",
     zaloAccessToken: zaloConfig?.accessToken ?? "",
     zaloSecretKey: zaloConfig?.secretKey ?? "",
+    discordGuildId: discordConfig?.guildId ?? "",
+    discordGuildName: discordConfig?.guildName ?? "",
+    discordBotToken: discordConfig?.botToken ?? "",
     widgetTitle: wechatConfig?.title ?? webConfig.title,
     widgetSubtitle: wechatConfig?.subtitle ?? webConfig.subtitle,
     widgetThemeColor: wechatConfig?.themeColor ?? webConfig.themeColor,
@@ -332,7 +410,7 @@ function buildPayload(form: EditForm, status: number, t: Translate): CreateAdmin
   }
   const configJson =
     channelType === "wxwork_kf"
-      ? JSON.stringify({ openKfId: form.openKfId.trim() })
+      ? JSON.stringify({ openKfId: form.openKfId.trim(), agentId: form.wxAgentId.trim() })
       : channelType === "telegram"
         ? JSON.stringify({
             botToken: form.botToken.trim(),
@@ -347,18 +425,28 @@ function buildPayload(form: EditForm, status: number, t: Translate): CreateAdmin
               secretKey: form.zaloSecretKey.trim(),
               webhookSecret: form.webhookSecret.trim(),
             })
-          : channelType === "wechat_mp"
-            ? JSON.stringify(webLikeConfig)
-            : JSON.stringify({
-                ...webLikeConfig,
-                position: form.widgetPosition || defaultWebChannelConfig.position,
-                width: form.widgetWidth.trim() || defaultWebChannelConfig.width,
-                userTokenSecret: form.userTokenSecret.trim(),
+          : channelType === "discord"
+            ? JSON.stringify({
+                guildId: form.discordGuildId.trim(),
+                guildName: form.discordGuildName.trim(),
+                botToken: form.discordBotToken.trim(),
+                webhookSecret: form.webhookSecret.trim(),
               })
+            : channelType === "wechat_mp"
+              ? JSON.stringify(webLikeConfig)
+              : JSON.stringify({
+                  ...webLikeConfig,
+                  position: form.widgetPosition || defaultWebChannelConfig.position,
+                  width: form.widgetWidth.trim() || defaultWebChannelConfig.width,
+                  userTokenSecret: form.userTokenSecret.trim(),
+                })
   return {
     channelType,
     aiAgentId: Number(form.aiAgentId),
 		aiAgentRolloutPercent: form.aiAgentRolloutPercent,
+    aiReplyPlaceholder: form.aiReplyPlaceholder.trim(),
+    aiReplyTimeoutSeconds: Number.isFinite(form.aiReplyTimeoutSeconds) ? form.aiReplyTimeoutSeconds : 0,
+    aiReplyTimeoutNotice: form.aiReplyTimeoutNotice.trim(),
     name: form.name.trim(),
     configJson,
     status,
@@ -416,6 +504,8 @@ function ChannelFormBody({
   const [loading, setLoading] = useState(false)
   const [aiAgents, setAIAgents] = useState<AIAgent[]>([])
   const [wxWorkKFAccounts, setWxWorkKFAccounts] = useState<WxWorkKFAccount[]>([])
+  const [wxWorkApiApps, setWxWorkApiApps] = useState<WxWorkApiApp[]>([])
+  const [wxWorkApiAppsLoading, setWxWorkApiAppsLoading] = useState(false)
   const [wxWorkKFAccountsLoading, setWxWorkKFAccountsLoading] = useState(false)
   const [wxWorkKFAccountsError, setWxWorkKFAccountsError] = useState("")
   const [channelDetail, setChannelDetail] = useState<AdminChannel | null>(null)
@@ -440,6 +530,7 @@ function ChannelFormBody({
   const channelType = useWatch({ control, name: "channelType" })
   const aiAgentId = useWatch({ control, name: "aiAgentId" })
   const openKfId = useWatch({ control, name: "openKfId" })
+  const wxAgentId = useWatch({ control, name: "wxAgentId" })
   const userTokenSecret = useWatch({ control, name: "userTokenSecret" })
 	const previousRolloutPercent = channelDetail?.previousAiAgentRolloutPercent ?? 0
 
@@ -530,6 +621,27 @@ function ChannelFormBody({
     t,
   ])
 
+  useEffect(() => {
+    if (
+      channelType !== "wxwork_kf" ||
+      wxWorkApiApps.length > 0 ||
+      wxWorkApiAppsLoading
+    ) {
+      return
+    }
+    async function loadWxWorkApiApps() {
+      setWxWorkApiAppsLoading(true)
+      try {
+        setWxWorkApiApps(await fetchWxWorkApiApps())
+      } catch (error) {
+        console.error("Failed to load WeCom apps:", error)
+      } finally {
+        setWxWorkApiAppsLoading(false)
+      }
+    }
+    void loadWxWorkApiApps()
+  }, [channelType, wxWorkApiApps.length, wxWorkApiAppsLoading])
+
   const selectedAIAgent = aiAgents.find((item) => String(item.id) === aiAgentId)
   const aiAgentOptions = aiAgents.map((item) => ({
     value: String(item.id),
@@ -540,9 +652,14 @@ function ChannelFormBody({
     value: item.openKfId,
     label: item.name ? `${item.name} (${item.openKfId})` : item.openKfId,
   }))
+  const wxWorkApiAppOptions = wxWorkApiApps.map((item) => ({
+    value: item.agentId,
+    label: item.agentId,
+  }))
   const channelTypeOptions = [
     { value: "web", label: t("channel.typeWeb") },
     { value: "telegram", label: t("channel.typeTelegram") },
+    { value: "discord", label: t("channel.typeDiscord") },
     { value: "wechat_mp", label: t("channel.typeWechatMp") },
     { value: "wxwork_kf", label: t("channel.typeWxworkKf") },
   ] as const
@@ -558,6 +675,16 @@ function ChannelFormBody({
     wxWorkKFAccountOptions.unshift({
       value: openKfId,
       label: openKfId,
+    })
+  }
+  if (
+    channelType === "wxwork_kf" &&
+    wxAgentId &&
+    !wxWorkApiAppOptions.some((item) => item.value === wxAgentId)
+  ) {
+    wxWorkApiAppOptions.unshift({
+      value: wxAgentId,
+      label: wxAgentId,
     })
   }
 
@@ -765,6 +892,57 @@ function ChannelFormBody({
               </div>
             ) : null}
 
+            {channelType === "discord" ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field data-invalid={!!errors.discordGuildId}>
+                    <FieldLabel htmlFor="channel-discord-guildid">{t("channel.discordGuildId")}</FieldLabel>
+                    <FieldContent>
+                      <Input
+                        id="channel-discord-guildid"
+                        placeholder="e.g. 1234567890123456789"
+                        {...register("discordGuildId")}
+                      />
+                      <FieldError errors={[errors.discordGuildId]} />
+                    </FieldContent>
+                  </Field>
+
+                  <Field data-invalid={!!errors.discordGuildName}>
+                    <FieldLabel htmlFor="channel-discord-guildname">{t("channel.discordGuildName")}</FieldLabel>
+                    <FieldContent>
+                      <Input
+                        id="channel-discord-guildname"
+                        placeholder="e.g. Support Server"
+                        {...register("discordGuildName")}
+                      />
+                      <FieldError errors={[errors.discordGuildName]} />
+                    </FieldContent>
+                  </Field>
+                </div>
+
+                <Field data-invalid={!!errors.discordBotToken}>
+                  <FieldLabel htmlFor="channel-discord-bottoken">{t("channel.discordBotToken")}</FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="channel-discord-bottoken"
+                      type="password"
+                      placeholder="Optional per-channel bot token"
+                      {...register("discordBotToken")}
+                    />
+                    <FieldError errors={[errors.discordBotToken]} />
+                  </FieldContent>
+                </Field>
+
+                <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+                  <div className="font-medium text-foreground">{t("channel.discordSetupTitle")}</div>
+                  <div className="mt-1">{t("channel.discordSetupDescription")}</div>
+                  <div className="mt-2 font-mono text-[11px]">
+                    {t("channel.inboundWebhookUrl")}: /api/third/discord/webhook
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             {channelType === "telegram" ? (
               <div className="space-y-4">
                 <Field data-invalid={!!errors.botToken}>
@@ -814,31 +992,58 @@ function ChannelFormBody({
             ) : null}
 
             {channelType === "wxwork_kf" ? (
-              <Field data-invalid={!!errors.openKfId}>
-                <FieldLabel>{t("channel.wxworkAccount")}</FieldLabel>
-                <FieldContent>
-                  <Controller
-                    control={control}
-                    name="openKfId"
-                    render={({ field }) => (
-                      <OptionCombobox
-                        value={field.value}
-                        options={wxWorkKFAccountOptions}
-                        placeholder={
-                          wxWorkKFAccountsLoading ? t("channel.loadingWxworkAccount") : t("channel.selectWxworkAccount")
-                        }
-                        searchPlaceholder={t("channel.searchWxworkAccount")}
-                        emptyText={
-                          wxWorkKFAccountsError || t("channel.emptyWxworkAccount")
-                        }
-                        disabled={wxWorkKFAccountsLoading}
-                        onChange={field.onChange}
-                      />
-                    )}
-                  />
-                  <FieldError errors={[errors.openKfId]} />
-                </FieldContent>
-              </Field>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field data-invalid={!!errors.openKfId}>
+                  <FieldLabel>{t("channel.wxworkAccount")}</FieldLabel>
+                  <FieldContent>
+                    <Controller
+                      control={control}
+                      name="openKfId"
+                      render={({ field }) => (
+                        <OptionCombobox
+                          value={field.value}
+                          options={wxWorkKFAccountOptions}
+                          placeholder={
+                            wxWorkKFAccountsLoading ? t("channel.loadingWxworkAccount") : t("channel.selectWxworkAccount")
+                          }
+                          searchPlaceholder={t("channel.searchWxworkAccount")}
+                          emptyText={
+                            wxWorkKFAccountsError || t("channel.emptyWxworkAccount")
+                          }
+                          disabled={wxWorkKFAccountsLoading}
+                          onChange={field.onChange}
+                        />
+                      )}
+                    />
+                    <FieldError errors={[errors.openKfId]} />
+                  </FieldContent>
+                </Field>
+
+                <Field data-invalid={!!errors.wxAgentId}>
+                  <FieldLabel>{t("channel.wxworkApp")}</FieldLabel>
+                  <FieldContent>
+                    <Controller
+                      control={control}
+                      name="wxAgentId"
+                      render={({ field }) => (
+                        <OptionCombobox
+                          value={field.value}
+                          options={wxWorkApiAppOptions}
+                          placeholder={
+                            wxWorkApiAppsLoading ? t("channel.loadingWxworkAccount") : t("channel.selectWxworkApp")
+                          }
+                          searchPlaceholder={t("channel.searchWxworkAccount")}
+                          emptyText={t("channel.emptyWxworkApp")}
+                          disabled={wxWorkApiAppsLoading}
+                          onChange={field.onChange}
+                        />
+                      )}
+                    />
+                    <FieldError errors={[errors.wxAgentId]} />
+                    <WxWorkReadTestButton channelId={channelDetail?.id ?? itemId} />
+                  </FieldContent>
+                </Field>
+              </div>
             ) : null}
 
             {channelType === "web" || channelType === "wechat_mp" ? (
@@ -965,6 +1170,56 @@ function ChannelFormBody({
                 )}
               </>
             ) : null}
+          </div>
+
+          <div className="space-y-4 rounded-md border p-4">
+            <div>
+              <div className="text-sm font-medium">{t("channel.aiReplySectionTitle")}</div>
+              <div className="text-xs text-muted-foreground">{t("channel.aiReplySectionDescription")}</div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field data-invalid={!!errors.aiReplyPlaceholder}>
+                <FieldLabel htmlFor="channel-ai-reply-placeholder">{t("channel.aiReplyPlaceholder")}</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="channel-ai-reply-placeholder"
+                    placeholder={t("channel.aiReplyPlaceholderPlaceholder")}
+                    {...register("aiReplyPlaceholder")}
+                  />
+                  <FieldError errors={[errors.aiReplyPlaceholder]} />
+                </FieldContent>
+              </Field>
+
+              <Field data-invalid={!!errors.aiReplyTimeoutSeconds}>
+                <FieldLabel htmlFor="channel-ai-reply-timeout">{t("channel.aiReplyTimeoutSeconds")}</FieldLabel>
+                <FieldContent>
+                  <Input
+                    id="channel-ai-reply-timeout"
+                    type="number"
+                    min={0}
+                    max={600}
+                    step={1}
+                    {...register("aiReplyTimeoutSeconds")}
+                  />
+                  <div className="text-xs text-muted-foreground">{t("channel.aiReplyTimeoutSecondsHint")}</div>
+                  <FieldError errors={[errors.aiReplyTimeoutSeconds]} />
+                </FieldContent>
+              </Field>
+            </div>
+
+            <Field data-invalid={!!errors.aiReplyTimeoutNotice}>
+              <FieldLabel htmlFor="channel-ai-reply-timeout-notice">{t("channel.aiReplyTimeoutNotice")}</FieldLabel>
+              <FieldContent>
+                <Textarea
+                  id="channel-ai-reply-timeout-notice"
+                  rows={2}
+                  placeholder={t("channel.aiReplyTimeoutNoticePlaceholder")}
+                  {...register("aiReplyTimeoutNotice")}
+                />
+                <FieldError errors={[errors.aiReplyTimeoutNotice]} />
+              </FieldContent>
+            </Field>
           </div>
 
           <Field data-invalid={!!errors.remark}>

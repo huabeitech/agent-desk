@@ -43,6 +43,7 @@ import {
   type TagTree,
   fetchTagsAll,
 } from "@/lib/api/admin";
+import { getChannelTypeLabel } from "@/lib/channel-i18n";
 import { updateCompany, type AdminCompany } from "@/lib/api/company";
 import { fetchTickets, type TicketItem } from "@/lib/api/ticket";
 import {
@@ -81,6 +82,19 @@ function contactTypeLabel(
     default:
       return String(contactType);
   }
+}
+
+// buildSourceChannelValue 组装来源渠道展示文本：渠道类型本地化名称，附带渠道名称（若已配置）。
+function buildSourceChannelValue(
+  conversation: AgentConversation,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  if (!conversation.channelType) {
+    return "";
+  }
+  const typeLabel = getChannelTypeLabel(conversation.channelType, t);
+  const channelName = conversation.channelName?.trim();
+  return channelName ? `${typeLabel} · ${channelName}` : typeLabel;
 }
 
 function ContactTypeIcon({ contactType }: { contactType: ContactType | string }) {
@@ -197,6 +211,7 @@ function MissingCustomerEmpty({ conversation }: { conversation: AgentConversatio
       <div className="space-y-2">
         <SectionHeading>{t("conversation.conversationOwner")}</SectionHeading>
         <div className="space-y-2">
+          <DetailRow label={t("conversation.sourceChannel")} value={buildSourceChannelValue(conversation, t)} />
           <DetailRow label={t("conversation.channelId")} value={conversation.channelId ? `${conversation.channelId}` : "-"} />
           <DetailRow label={t("conversation.customerId")} value={conversation.customerId ? `${conversation.customerId}` : "-"} />
         </div>
@@ -260,6 +275,12 @@ export function ConversationInfoPanel({
                 label={t("conversation.conversationId")}
                 value={`${conversation.id}`}
                 valueClassName="font-mono text-xs"
+              />
+            </section>
+            <section>
+              <DetailRow
+                label={t("conversation.sourceChannel")}
+                value={buildSourceChannelValue(conversation, t)}
               />
             </section>
             <CustomerBody conversation={conversation} />

@@ -187,6 +187,9 @@ export type AdminChannel = {
   aiAgentId: number
   aiAgentRolloutPercent: number
 	previousAiAgentRolloutPercent: number
+  aiReplyPlaceholder: string
+  aiReplyTimeoutSeconds: number
+  aiReplyTimeoutNotice: string
   aiAgentName?: string
   name: string
   configJson: string
@@ -199,6 +202,32 @@ export type WxWorkKFAccount = {
   name: string
   avatar: string
   managePrivilege: boolean
+}
+
+export type WxWorkKFMessageReadSample = {
+  msgId?: string
+  sendTime?: string
+  origin: number
+  msgType?: string
+  eventType?: string
+  textContent?: string
+  externalUserId?: string
+  servicerUserId?: string
+}
+
+export type WxWorkKFMessageReadResult = {
+  success: boolean
+  stage?: string
+  errorCode?: string
+  errorMessage?: string
+  openKfId?: string
+  totalScanned: number
+  messageCount: number
+  eventCount: number
+  truncated: boolean
+  earliestTime?: string
+  latestTime?: string
+  samples: WxWorkKFMessageReadSample[]
 }
 
 export type ChannelMessageOutbox = {
@@ -222,6 +251,9 @@ export type CreateAdminChannelPayload = {
   channelType: string
   aiAgentId: number
   aiAgentRolloutPercent: number
+  aiReplyPlaceholder: string
+  aiReplyTimeoutSeconds: number
+  aiReplyTimeoutNotice: string
   name: string
   configJson: string
   status: number
@@ -931,8 +963,26 @@ export function fetchChannel(id: number) {
   return request<AdminChannel>(`/api/dashboard/channel/${id}`)
 }
 
+export type WxWorkApiApp = {
+  agentId: string
+}
+
 export function fetchWxWorkKFAccounts() {
   return request<WxWorkKFAccount[]>("/api/dashboard/channel/wxwork/kf/accounts")
+}
+
+export function fetchWxWorkApiApps() {
+  return request<WxWorkApiApp[]>("/api/dashboard/channel/wxwork/api_apps")
+}
+
+export function testWxWorkKFReadMessages(id: number) {
+  return request<WxWorkKFMessageReadResult>(
+    "/api/dashboard/channel/wxwork/kf/test_read_messages",
+    {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    }
+  )
 }
 
 export function fetchWxWorkOutboxFailures(
@@ -2213,6 +2263,13 @@ export function buildKnowledgeDocumentIndex(documentId: number) {
   })
 }
 
+export function batchBuildKnowledgeDocumentIndex(ids: number[]) {
+  return request<void>("/api/dashboard/knowledge-document/batch_build", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  })
+}
+
 export function fetchKnowledgeFAQs(
   query?: Record<string, string | number | undefined>
 ) {
@@ -2408,6 +2465,27 @@ export type DashboardSupportConfig = {
 
 export function fetchSupportConfigAdmin() {
   return request<DashboardSupportConfig>("/api/dashboard/support/config")
+}
+
+export type SystemLog = {
+  id: number
+  level: string
+  levelName: string
+  message: string
+  source: string
+  loggerName: string
+  attrs: string
+  createdAt: string
+}
+
+export function fetchSystemLogs(query?: Record<string, string | number | undefined>) {
+  return request<PageResult<SystemLog>>(
+    `/api/dashboard/system-log/list${toQueryString(query)}`
+  )
+}
+
+export function fetchSystemLog(id: number) {
+  return request<SystemLog>(`/api/dashboard/system-log/${id}`)
 }
 
 export function saveSupportConfigAdmin(payload: Partial<DashboardSupportConfig>) {

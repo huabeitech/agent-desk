@@ -164,6 +164,19 @@ func (e RealtimeMessageCreatedEvent) EventPayload() RealtimeEventPayload {
 	return e.Payload
 }
 
+// RealtimeMessageUpdatedEvent 通知客户端某条消息内容已被更新（如 AI 占位回复被正式回复替换）。
+type RealtimeMessageUpdatedEvent struct {
+	Payload RealtimeMessageCreatedPayload
+}
+
+func (e RealtimeMessageUpdatedEvent) EventType() string {
+	return enums.IMRealtimeEventMessageUpdated
+}
+
+func (e RealtimeMessageUpdatedEvent) EventPayload() RealtimeEventPayload {
+	return e.Payload
+}
+
 type RealtimeMessageRecalledPayload struct {
 	ConversationID int64                 `json:"conversationId,omitempty"`
 	MessageID      int64                 `json:"messageId,omitempty"`

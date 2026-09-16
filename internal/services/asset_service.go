@@ -61,12 +61,16 @@ func (s *assetService) OpenReader(asset *models.Asset) (io.ReadCloser, error) {
 }
 
 func (s *assetService) UploadBytes(data []byte, prefix, filename string, principal *dto.AuthPrincipal) (*models.Asset, error) {
-	src := bytes.NewReader(data)
-	return s.Upload(src, storage.UploadInfo{
+	filename = storage.SanitizeFilename(filename)
+	mimeType, err := storage.ValidateUpload(filename, "", http.DetectContentType(data))
+	if err != nil {
+		return nil, err
+	}
+	return s.Upload(bytes.NewReader(data), storage.UploadInfo{
 		Prefix:    prefix,
 		Filename:  filename,
 		FileSize:  int64(len(data)),
-		MimeType:  http.DetectContentType(data),
+		MimeType:  mimeType,
 		Principal: principal,
 	})
 }
@@ -87,11 +91,22 @@ func (s *assetService) UploadFile(file *multipart.FileHeader, prefix string, pri
 	}
 	defer func() { _ = src.Close() }()
 
+	sniffed, err := storage.SniffContentType(src)
+	if err != nil {
+		return nil, err
+	}
+
+	filename := storage.SanitizeFilename(file.Filename)
+	mimeType, err := storage.ValidateUpload(filename, file.Header.Get("Content-Type"), sniffed)
+	if err != nil {
+		return nil, err
+	}
+
 	return s.Upload(src, storage.UploadInfo{
 		Prefix:    prefix,
-		Filename:  file.Filename,
+		Filename:  filename,
 		FileSize:  file.Size,
-		MimeType:  file.Header.Get("Content-Type"),
+		MimeType:  mimeType,
 		Principal: principal,
 	})
 }

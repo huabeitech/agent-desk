@@ -186,6 +186,9 @@ var (
 	// MCP 调试相关权限
 	PermissionMCPView = Permission{Name: "查看MCP调试信息", Code: "mcp.view", Type: "api", GroupName: "mcp", Method: "POST", APIPath: "/api/dashboard/mcp/list_tools", SortNo: 1710}
 	PermissionMCPCall = Permission{Name: "调用MCP工具", Code: "mcp.call", Type: "api", GroupName: "mcp", Method: "POST", APIPath: "/api/dashboard/mcp/call_tool", SortNo: 1720}
+
+	// 系统日志相关权限
+	PermissionSystemLogView = Permission{Name: "查看系统日志", Code: "systemLog.view", Type: "api", GroupName: "systemLog", Method: "ANY", APIPath: "/api/dashboard/system-log/list", SortNo: 1810}
 )
 
 // Permissions 内置权限列表
@@ -295,6 +298,7 @@ var Permissions = []Permission{
 	PermissionSkillDefinitionDelete,
 	PermissionMCPView,
 	PermissionMCPCall,
+	PermissionSystemLogView,
 }
 
 // PermissionMap 权限映射，用于通过 Code 查找 Permission
@@ -392,6 +396,7 @@ var builtinPermissionResourceLabels = map[string]string{
 	"knowledgeFAQ":      "knowledge FAQs",
 	"skillDefinition":   "Skill definitions",
 	"mcp":               "MCP tools",
+	"systemLog":         "system logs",
 }
 
 var builtinPermissionNameOverrides = map[string]string{
@@ -444,6 +449,7 @@ var RolePermissions = map[string][]Permission{
 		PermissionAIAgentView, PermissionAIAgentCreate, PermissionAIAgentUpdate, PermissionAIAgentDelete,
 		PermissionAIConfigView, PermissionAIConfigCreate, PermissionAIConfigUpdate, PermissionAIConfigDelete,
 		PermissionSkillDefinitionView, PermissionSkillDefinitionCreate, PermissionSkillDefinitionUpdate, PermissionSkillDefinitionDelete,
+		PermissionSystemLogView,
 	},
 	RoleCodeCsTeamLeader: {
 		PermissionUserView,
