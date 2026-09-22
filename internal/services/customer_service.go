@@ -3,7 +3,10 @@ package services
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"agent-desk/internal/models"
 	"agent-desk/internal/pkg/dto"
@@ -13,8 +16,6 @@ import (
 	"agent-desk/internal/pkg/openidentity"
 	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/repositories"
-	"strings"
-	"time"
 
 	"agent-desk/internal/pkg/httpx/params"
 
@@ -217,6 +218,15 @@ func (s *customerService) CreateCustomer(req request.CreateCustomerRequest, oper
 	if err := repositories.CustomerRepository.Create(sqls.DB(), item); err != nil {
 		return nil, err
 	}
+
+	WebhookSyncService.DispatchOutboundEvent("customer.created", request.OrgSyncEventData{
+		DeskCustomerID: fmt.Sprintf("cust_%d", item.ID),
+		Name:           item.Name,
+		Email:          item.PrimaryEmail,
+		Phone:          item.PrimaryMobile,
+		Source:         "crove_desk",
+	})
+
 	return item, nil
 }
 

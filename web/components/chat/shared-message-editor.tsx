@@ -33,7 +33,7 @@ import {
   setEditorImageUploadingByTitle,
   type UploadedEditorImage,
 } from "@/lib/im-editor-image"
-import { generateUUID } from "@/lib/utils"
+import { cn, generateUUID } from "@/lib/utils"
 import { useI18n } from "@/i18n/provider"
 
 export type UploadedMessageEditorImage = UploadedEditorImage & {
@@ -60,7 +60,7 @@ type SharedMessageEditorProps = {
     items: MessageEditorQuickReply[]
     onOpenChange: (open: boolean) => void
   }
-  onSend: (html: string) => Promise<void>
+  onSend: (html: string, messageType?: "html" | "note") => Promise<void>
   onUploadImage: (file: File) => Promise<UploadedMessageEditorImage | null>
   onSendAttachment: (file: File) => Promise<void>
 }
@@ -76,6 +76,7 @@ export function SharedMessageEditor({
   onSendAttachment,
 }: SharedMessageEditorProps) {
   const t = useI18n()
+  const [editorMode, setEditorMode] = useState<"reply" | "note">("reply")
   const [localUploading, setLocalUploading] = useState(false)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentInputRef = useRef<HTMLInputElement | null>(null)
@@ -85,11 +86,18 @@ export function SharedMessageEditor({
   const shouldRestoreFocusRef = useRef(false)
   const objectUrlsRef = useRef<Set<string>>(new Set())
   const uploadedImagesRef = useRef(new Map<string, UploadedMessageEditorImage>())
-  const placeholderRef = useRef(t("conversation.editorPlaceholder"))
+  const placeholderRef = useRef(
+    editorMode === "note"
+      ? t("conversation.notePlaceholder")
+      : t("conversation.editorPlaceholder")
+  )
   const isCustomer = variant === "customer"
   const isUploading = uploadingAsset || (manageLocalUploading && localUploading)
 
-  placeholderRef.current = t("conversation.editorPlaceholder")
+  placeholderRef.current =
+    editorMode === "note"
+      ? t("conversation.notePlaceholder")
+      : t("conversation.editorPlaceholder")
 
   useEffect(() => {
     const objectUrls = objectUrlsRef.current
@@ -182,7 +190,7 @@ export function SharedMessageEditor({
     if (!isMeaningfulHTML(html)) {
       return
     }
-    await onSendRef.current(html)
+    await onSendRef.current(html, editorMode === "note" ? "note" : "html")
     editor.commands.clearContent(true)
     revokeEditorObjectUrls(objectUrlsRef.current)
     uploadedImagesRef.current.clear()
@@ -415,9 +423,18 @@ export function SharedMessageEditor({
               size="sm"
               onClick={() => void handleSend()}
               disabled={disabled || isUploading}
+              className={
+                editorMode === "note"
+                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                  : undefined
+              }
             >
               <SendIcon className="mr-1 size-4" />
-              {isUploading ? t("conversation.uploading") : t("conversation.send")}
+              {isUploading
+                ? t("conversation.uploading")
+                : editorMode === "note"
+                  ? t("conversation.addNote")
+                  : t("conversation.send")}
             </Button>
           )}
         </div>
@@ -437,7 +454,49 @@ export function SharedMessageEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col p-2">
-      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-sm border border-border bg-card">
+      <div
+        className={cn(
+          "flex h-full min-h-0 flex-col overflow-hidden rounded-sm border transition-colors",
+          editorMode === "note"
+            ? "border-amber-500/40 bg-amber-500/5 dark:bg-amber-950/15"
+            : "border-border bg-card"
+        )}
+      >
+        <div className="flex items-center gap-1 border-b px-2 py-1 bg-muted/30">
+          <button
+            type="button"
+            className={cn(
+              "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+              editorMode === "reply"
+                ? "bg-background text-foreground shadow-xs border"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => {
+              setEditorMode("reply")
+              shouldRestoreFocusRef.current = true
+              restoreFocusIfNeeded()
+            }}
+          >
+            <SendIcon className="size-3 text-primary" />
+            {t("conversation.replyMode")}
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+              editorMode === "note"
+                ? "bg-amber-500/20 text-amber-950 dark:text-amber-200 border border-amber-500/40 shadow-xs font-semibold"
+                : "text-muted-foreground hover:text-amber-600"
+            )}
+            onClick={() => {
+              setEditorMode("note")
+              shouldRestoreFocusRef.current = true
+              restoreFocusIfNeeded()
+            }}
+          >
+            🔒 {t("conversation.noteMode")}
+          </button>
+        </div>
         {editorContent}
       </div>
     </div>

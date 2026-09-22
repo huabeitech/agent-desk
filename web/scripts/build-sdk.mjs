@@ -12,6 +12,7 @@ const target = path.join(targetDir, "agent-desk-sdk.min.js");
 
 await mkdir(targetDir, { recursive: true });
 const sourceCode = await readFile(source, "utf8");
+
 const compiled = ts.transpileModule(sourceCode, {
   compilerOptions: {
     target: ts.ScriptTarget.ES2017,
@@ -21,6 +22,7 @@ const compiled = ts.transpileModule(sourceCode, {
   },
   fileName: source,
 });
+
 const compiledCode = compiled.outputText.replace(/\nexport\s*\{\};?\s*$/, "");
 const result = await minify(compiledCode, {
   compress: {

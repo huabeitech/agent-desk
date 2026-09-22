@@ -1,0 +1,17 @@
+{
+  "name": "crove-email-inbound-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Email Routing Worker forwarding inbound emails to Crove Desk webhook",
+  "main": "src/index.ts",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "postal-mime": "^2.1.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "typescript": "^6.0.3",
+    "wrangler": "^3.84.1"
+  }
+}

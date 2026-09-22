@@ -18,7 +18,26 @@ async function loadModule() {
     module: { exports: {} },
     require: (id) => {
       if (id === "@/i18n/config") {
-        return { DEFAULT_LOCALE: "zh-CN" }
+        return {
+          DEFAULT_LOCALE: "zh-CN",
+          normalizeLocale: (loc) => (loc === "en-US" || loc === "en" ? "en-US" : "zh-CN"),
+        }
+      }
+      if (id === "@/i18n/messages") {
+        return {
+          translateMessage: (loc, key, values) => {
+            if (key === "notification.fallbackTitle") return "Notification"
+            if (key === "notification.ticketAssignedTitle") return "Ticket assigned"
+            if (key === "notification.ticketAssignedLine") return `Ticket ${values?.ticketNo} has been assigned to you.`
+            if (key === "notification.assignmentReason") return `Assignment reason: ${values?.reason}`
+            if (key === "notification.conversationTransferredTitle") return "Conversation transferred"
+            if (key === "notification.conversationAutoAssignedTitle") return "Conversation auto-assigned"
+            if (key === "notification.conversationAssignedTitle") return "Conversation assigned"
+            if (key === "notification.conversationAssignedLine") return `Conversation #${values?.conversationId} was assigned to you`
+            if (key === "notification.transferReason") return `Transfer reason: ${values?.reason}`
+            return key
+          },
+        }
       }
       throw new Error(`unexpected import ${id}`)
     },

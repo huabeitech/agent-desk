@@ -390,7 +390,7 @@ func (s *messageService) sendMessage(conversationID int64, senderType enums.IMSe
 	if strs.IsBlank(string(messageType)) {
 		messageType = enums.IMMessageTypeText
 	}
-	conversation, err := s.ValidateConversationSender(conversationID, senderType, operator, external)
+	conversation, err := s.ValidateConversationSenderWithMessage(conversationID, senderType, messageType, operator, external)
 	if err != nil {
 		return nil, err
 	}
@@ -559,6 +559,15 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 		)
 	}
 
+	// Email 渠道消息入队，异步发送
+	if enqueueErr := ChannelMessageOutboxService.EnqueueEmailMessage(conversation, message); enqueueErr != nil {
+		slog.Error("enqueue email outbox failed",
+			"conversation_id", conversation.ID,
+			"message_id", message.ID,
+			"error", enqueueErr,
+		)
+	}
+
 	// Discord 渠道消息入队，异步发送
 	if enqueueErr := ChannelMessageOutboxService.EnqueueDiscordMessage(conversation, message); enqueueErr != nil {
 		slog.Error("enqueue discord outbox failed",
@@ -579,6 +588,17 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 
 // handleReadState 根据发送者类型更新会话已读状态，并返回更新后的客服和客户未读消息数。
 func (s *messageService) handleReadState(ctx *sqls.TxContext, senderType enums.IMSenderType, conversation *models.Conversation, operator *dto.AuthPrincipal, message *models.Message, external *openidentity.ExternalUser) (agentUnreadCount int64, customerUnreadCount int64, err error) {
+	if message.MessageType == enums.IMMessageTypeNote {
+		if operator != nil {
+			if _, err := ConversationReadStateService.MarkAgentRead(ctx, conversation, operator, message); err != nil {
+				return 0, 0, err
+			}
+		}
+		agentReadState, customerReadState := ConversationReadStateService.getConversationReadStates(ctx.Tx, conversation.ID)
+		agentUnreadCount, _ = ConversationReadStateService.CountUnreadMessages(ctx, conversation.ID, s.readMessageID(agentReadState), enums.IMSenderTypeCustomer)
+		customerUnreadCount, _ = ConversationReadStateService.CountUnreadMessages(ctx, conversation.ID, s.readMessageID(customerReadState), enums.IMSenderTypeAgent, enums.IMSenderTypeAI)
+		return agentUnreadCount, customerUnreadCount, nil
+	}
 	readStateType := senderType
 	if senderType == enums.IMSenderTypeAI {
 		readStateType = enums.IMSenderTypeAgent
@@ -675,6 +695,10 @@ func (s *messageService) normalizeMessageContent(conversationID int64, messageTy
 }
 
 func (s *messageService) ValidateConversationSender(conversationID int64, senderType enums.IMSenderType, operator *dto.AuthPrincipal, external *openidentity.ExternalUser) (*models.Conversation, error) {
+	return s.ValidateConversationSenderWithMessage(conversationID, senderType, enums.IMMessageTypeText, operator, external)
+}
+
+func (s *messageService) ValidateConversationSenderWithMessage(conversationID int64, senderType enums.IMSenderType, messageType enums.IMMessageType, operator *dto.AuthPrincipal, external *openidentity.ExternalUser) (*models.Conversation, error) {
 	conversation := ConversationService.Get(conversationID)
 	if conversation == nil {
 		return nil, errorsx.InvalidParamI18n("error.e0116")
@@ -687,11 +711,13 @@ func (s *messageService) ValidateConversationSender(conversationID int64, sender
 		if operator == nil {
 			return nil, errorsx.UnauthorizedI18n("error.auth.expired")
 		}
-		if conversation.Status != enums.IMConversationStatusActive || conversation.CurrentAssigneeID == 0 {
-			return nil, errorsx.InvalidParamI18n("error.e0120")
-		}
-		if conversation.CurrentAssigneeID != operator.UserID {
-			return nil, errorsx.ForbiddenI18n("error.e0191")
+		if messageType != enums.IMMessageTypeNote {
+			if conversation.Status != enums.IMConversationStatusActive || conversation.CurrentAssigneeID == 0 {
+				return nil, errorsx.InvalidParamI18n("error.e0120")
+			}
+			if conversation.CurrentAssigneeID != operator.UserID {
+				return nil, errorsx.ForbiddenI18n("error.e0191")
+			}
 		}
 	case enums.IMSenderTypeAI:
 		if operator == nil {

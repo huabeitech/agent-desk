@@ -161,6 +161,18 @@ export function LoginForm({
           <form className="p-6 md:p-8" onSubmit={handleSubmit}>
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
+                <div className="flex items-center gap-2.5 font-semibold tracking-tight text-lg mb-1">
+                  <Image
+                    src={publicConfig?.companyLogoUrl || "/images/logo.svg"}
+                    alt={publicConfig?.companyName || t("app.brand")}
+                    width={36}
+                    height={36}
+                    className="size-9 object-contain"
+                    priority
+                    unoptimized={Boolean(publicConfig?.companyLogoUrl?.startsWith("http"))}
+                  />
+                  <span>{publicConfig?.companyName ? (publicConfig.companyName.toLowerCase().includes("desk") ? publicConfig.companyName : `${publicConfig.companyName} Desk`) : t("app.brand")}</span>
+                </div>
                 <h1 className="text-2xl font-bold">{t("auth.welcome")}</h1>
                 <p className="text-balance text-muted-foreground">
                   {t("auth.loginDescription", { brand: publicConfig.companyName || t("app.brand") })}

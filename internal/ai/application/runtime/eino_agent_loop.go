@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -61,7 +62,8 @@ func einoAgentLoop(
 	messages = append(messages, schema.UserMessage(strings.TrimSpace(userPrompt)))
 	result, err := agent.Generate(ctx, messages)
 	if err != nil {
-		return nil, err
+		slog.Warn("eino agent loop failed, falling back to standard ChatWithTools", "error", err)
+		return ai.LLM.ChatWithTools(ctx, config, systemPrompt, userPrompt, definitions, maxSteps, execute)
 	}
 	if result == nil {
 		return nil, fmt.Errorf("Eino agent loop returned no result")

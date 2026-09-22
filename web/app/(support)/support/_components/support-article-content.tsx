@@ -173,7 +173,7 @@ function MermaidDiagram({ definition }: { definition: string }) {
             signalTextColor: "#f4f4f5",
             tertiaryTextColor: "#f4f4f5",
           } : undefined,
-          fontFamily: "var(--font-geist-sans), Arial, sans-serif",
+          fontFamily: "var(--font-inter), Arial, sans-serif",
           flowchart: { useMaxWidth: true },
         })
         const valid = await mermaid.parse(definition, { suppressErrors: true })

@@ -269,7 +269,7 @@ export function TagSelector(props: TagSelectorProps) {
                               variant="ghost"
                               size="icon-sm"
                               className="size-5 shrink-0"
-                              aria-label={collapsed ? "展开标签" : "折叠标签"}
+                              aria-label={collapsed ? t("common.expand") : t("common.collapse")}
                               onMouseDown={(event) => event.preventDefault()}
                               onClick={(event) => {
                                 event.preventDefault()

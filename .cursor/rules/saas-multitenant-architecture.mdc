@@ -1,0 +1,25 @@
+---
+description: Mandatory rule defining Crove OS and Crove Desk as a Multi-Tenant B2B SaaS platform (not internal-only)
+alwaysApply: true
+---
+
+# SaaS Multi-Tenant Product Mindset & Architecture
+
+## 1. Core Principle: Multi-Tenant B2B SaaS
+- **Crove OS** (Crove Desk, Crove CRM, Crove Post, Crove Sign, Crove Cal) is a **commercial, multi-tenant B2B SaaS ecosystem**, NOT an internal single-company tool or single-user product.
+- Every feature, channel, data model, API, and workflow MUST be architected to serve multiple independent organizations/tenants (`org_id`, `org_slug`) in a fully automated, self-service manner.
+- **NEVER** hardcode single-tenant assumptions, single company emails (e.g. assuming only `help@crove.com`), or manual database edits for a single user in architecture proposals or production logic.
+
+## 2. Channel & Inbound Routing Architecture (Multi-Tenant)
+- **Tenant Isolation**: Each organization manages their own channels (Web Widget, Telegram Bot, Zalo OA, Email, etc.) via the Dashboard self-service UI.
+- **Dynamic Inbound Ingestion**: 
+  - Global gateways (Cloudflare Email Routing, Inbound Webhooks) act as universal dispatchers.
+  - Inbound messages/emails are dynamically resolved to the correct Organization and Channel via recipient address format (e.g. `support@<org_slug>.crove.io`, `help+<org_slug>@crove.com`), channel ID, or verified custom domain routing.
+- **Outbound Delivery**:
+  - Tenants can use default SaaS delivery infrastructure or bring their own custom SMTP / ESP API keys (Brevo, SendGrid, Postmark, Resend, Mailgun) configured securely within their organization settings.
+
+## 3. Implementation Checklist for New Features
+- [ ] Multi-tenant scoping: Data, settings, and permissions are partitioned by `org_id` / `org_slug`.
+- [ ] Self-service UX: Any tenant admin can configure and activate the feature directly from the UI without developer intervention.
+- [ ] Scalable routing: Inbound webhooks/events dynamically look up target tenant and channel in real-time.
+- [ ] Clean upstream compatibility: Generic code stays compatible with open-source upstream while SaaS multi-tenant extensions follow clean architectural boundaries.

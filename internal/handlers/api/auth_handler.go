@@ -43,6 +43,7 @@ func PublicConfig(ctx *gin.Context) {
 		Language:             cfg.LanguageOrDefault(),
 		CompanyName:          cfg.Server.CompanyName,
 		CompanyLogoURL:       cfg.Server.CompanyLogoURL,
+		CompanyFaviconURL:    cfg.Server.CompanyFaviconURL,
 		PasswordLoginEnabled: cfg.Auth.IsPasswordLoginEnabled(),
 		WxWorkEnabled:        cfg.WxWork.Enabled,
 		OIDCEnabled:          cfg.OIDC.Enabled,

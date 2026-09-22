@@ -60,7 +60,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/markdown-it": "^14.1.2",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/turndown": "^5.0.6",

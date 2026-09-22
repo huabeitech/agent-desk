@@ -81,7 +81,7 @@ export function OptionCombobox(props: OptionComboboxProps) {
       ? placeholder
       : selectedOptions.length === 1
         ? selectedOptions[0].label
-        : `已选择 ${selectedOptions.length} 项`
+        : t("common.selectedCount", { count: selectedOptions.length })
   const optionGroups = Array.from(
     options.reduce((groups, option) => {
       const group = option.group ?? ""

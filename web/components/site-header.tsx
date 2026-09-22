@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
 
+import { LanguageToggle } from "@/components/language-toggle"
 import { PaletteToggle } from "@/components/palette-toggle"
 import { RealtimeConnectionStatus } from "@/components/realtime-connection-status"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -77,6 +78,7 @@ export function SiteHeader() {
           </div>
         </div>
         <div className="flex shrink-0 items-center justify-end gap-2">
+          <LanguageToggle />
           <PaletteToggle />
           <ThemeToggle />
         </div>

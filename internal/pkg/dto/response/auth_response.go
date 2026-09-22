@@ -25,6 +25,7 @@ type PublicConfigResponse struct {
 	Language             string `json:"language"`
 	CompanyName          string `json:"companyName,omitempty"`
 	CompanyLogoURL       string `json:"companyLogoUrl,omitempty"`
+	CompanyFaviconURL    string `json:"companyFaviconUrl,omitempty"`
 	PasswordLoginEnabled bool   `json:"passwordLoginEnabled"`
 	WxWorkEnabled        bool   `json:"wxworkEnabled"`
 	OIDCEnabled          bool   `json:"oidcEnabled"`

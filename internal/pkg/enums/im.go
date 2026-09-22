@@ -58,6 +58,7 @@ const (
 	IMSenderTypeCustomer IMSenderType = "customer" // 客户
 	IMSenderTypeAI       IMSenderType = "ai"       // AI
 	IMSenderTypeSystem   IMSenderType = "system"   // 系统
+	IMSenderTypeNote     IMSenderType = "note"     // 内部便签
 )
 
 var imSenderTypeLabelMap = map[IMSenderType]string{
@@ -65,6 +66,7 @@ var imSenderTypeLabelMap = map[IMSenderType]string{
 	IMSenderTypeCustomer: "客户",
 	IMSenderTypeAI:       "AI",
 	IMSenderTypeSystem:   "系统",
+	IMSenderTypeNote:     "便签",
 }
 
 func GetIMSenderTypeLabel(senderType IMSenderType) string {
@@ -130,6 +132,7 @@ const (
 	IMMessageTypeImage      IMMessageType = "image"
 	IMMessageTypeAttachment IMMessageType = "attachment"
 	IMMessageTypeHTML       IMMessageType = "html"
+	IMMessageTypeNote       IMMessageType = "note"
 )
 
 var imMessageTypeLabelMap = map[IMMessageType]string{
@@ -137,6 +140,7 @@ var imMessageTypeLabelMap = map[IMMessageType]string{
 	IMMessageTypeImage:      "图片",
 	IMMessageTypeAttachment: "附件",
 	IMMessageTypeHTML:       "富文本",
+	IMMessageTypeNote:       "便签",
 }
 
 func GetIMMessageTypeLabel(messageType IMMessageType) string {

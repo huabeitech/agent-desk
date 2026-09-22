@@ -1,7 +1,7 @@
 @layer components {
   .typeset {
-    --typeset-font-body: var(--font-geist-sans);
-    --typeset-font-heading: var(--font-geist-sans);
+    --typeset-font-body: var(--font-inter);
+    --typeset-font-heading: var(--font-inter);
     --typeset-font-mono: var(--font-geist-mono);
     --typeset-size: 1rem;
     --typeset-leading: 1.8;

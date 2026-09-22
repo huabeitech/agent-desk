@@ -176,6 +176,7 @@ func (s *channelMessageOutboxService) EnqueueTelegramMessage(conversation *model
 		return err
 	}
 
+	// Trigger async dispatch immediately
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -238,6 +239,7 @@ func (s *channelMessageOutboxService) EnqueueZaloOAMessage(conversation *models.
 		return err
 	}
 
+	// Trigger async dispatch immediately
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -245,6 +247,69 @@ func (s *channelMessageOutboxService) EnqueueZaloOAMessage(conversation *models.
 			}
 		}()
 		ZaloOAOutboundService.DispatchPendingOutbox()
+	}()
+
+	return nil
+}
+
+func (s *channelMessageOutboxService) EnqueueEmailMessage(conversation *models.Conversation, message *models.Message) error {
+	if conversation == nil || message == nil {
+		return nil
+	}
+	channel := ChannelService.Get(conversation.ChannelID)
+	if channel == nil || channel.ChannelType != enums.ChannelTypeEmail {
+		return nil
+	}
+	if message.SenderType != enums.IMSenderTypeAgent && message.SenderType != enums.IMSenderTypeAI {
+		return nil
+	}
+	if message.MessageType != enums.IMMessageTypeText && message.MessageType != enums.IMMessageTypeHTML {
+		return nil
+	}
+	if existing := s.GetByMessageID(enums.ChannelTypeEmail, message.ID); existing != nil {
+		return nil
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"conversationId": conversation.ID,
+		"messageId":      message.ID,
+		"messageType":    message.MessageType,
+		"content":        strings.TrimSpace(message.Content),
+		"payload":        strings.TrimSpace(message.Payload),
+		"senderId":       message.SenderID,
+	})
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	err = s.Create(&models.ChannelMessageOutbox{
+		ChannelType:    enums.ChannelTypeEmail,
+		ConversationID: conversation.ID,
+		MessageID:      message.ID,
+		Payload:        string(payload),
+		SendStatus:     string(enums.ChannelMessageOutboxStatusPending),
+		AuditFields: models.AuditFields{
+			CreatedAt:      now,
+			CreateUserID:   message.UpdateUserID,
+			CreateUserName: message.UpdateUserName,
+			UpdatedAt:      now,
+			UpdateUserID:   message.UpdateUserID,
+			UpdateUserName: message.UpdateUserName,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Trigger async dispatch immediately
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered from panic in email outbound dispatch", "error", r)
+			}
+		}()
+		EmailOutboundService.DispatchPendingOutbox()
 	}()
 
 	return nil

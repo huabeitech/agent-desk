@@ -126,6 +126,24 @@ vectorDB:
   lancedb:
     path: data/lancedb
 
+ai:
+  # Provider. Default is openai (OpenAI-compatible client used for all providers).
+  provider: openai
+  # Base URL for OpenAI-compatible API (e.g. OpenAI, DeepSeek, OpenRouter, Azure, Ollama, LiteLLM, vLLM).
+  baseUrl: https://api.openai.com/v1
+  # API key for the AI service.
+  apiKey: ""
+  # Default LLM model name.
+  llmModel: gpt-4o-mini
+  # Default Embedding model name.
+  embeddingModel: text-embedding-3-small
+  # Dimension for embedding model (e.g. 1536 for text-embedding-3-small).
+  embeddingDimension: 1536
+  # Timeout in milliseconds.
+  timeoutMs: 30000
+  # Maximum retry attempts.
+  maxRetryCount: 1
+
 mcp:
   # Global switch for MCP tool integration.
   # When false, MCP tool catalog, debug endpoints, and runtime tool calls are disabled.
@@ -141,6 +159,13 @@ mcp:
       timeoutMs: 15000
       # Extra HTTP headers sent to this MCP server on every request, for example Authorization or tenant headers.
       headers: {}
+    twenty_crm:
+      # Crove CRM (Twenty CRM) MCP Server for querying companies, contacts, opportunities, and tasks.
+      enabled: true
+      endpoint: "https://crm.crove.com/api/mcp"
+      timeoutMs: 15000
+      headers:
+        # Authorization: "Bearer <YOUR_CRM_API_KEY>"
 
 oidc:
   # Whether to enable OIDC login. This system acts as the OIDC client.
@@ -202,3 +227,22 @@ wxWork:
     enableDuplicateCheck: true
     # Duplicate message check window, in seconds.
     duplicateCheckInterval: 1800
+
+email:
+  # Outbound delivery provider: smtp, brevo, sendgrid, resend, postmark, mailgun
+  provider: brevo
+  # Default system support email address (e.g. help@crove.com)
+  fromAddress: "help@crove.com"
+  # Default sender display name
+  fromName: "Crove Desk Support"
+  # Provider API Key (for Brevo, SendGrid, Resend, Postmark, Mailgun)
+  apiKey: ""
+  # Custom SMTP server configuration (when provider is smtp)
+  smtpHost: ""
+  smtpPort: 587
+  smtpUser: ""
+  smtpPassword: ""
+  smtpUseTls: false
+  # Secret token to authenticate Inbound Webhook requests at /api/third/email/webhook (Header: X-Webhook-Secret)
+  inboundSecret: ""
+

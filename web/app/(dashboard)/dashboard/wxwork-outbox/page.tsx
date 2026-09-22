@@ -16,19 +16,8 @@ import {
   retryWxWorkOutbox,
   type ChannelMessageOutbox,
 } from "@/lib/api/admin"
+import { useI18n } from "@/i18n/provider"
 import { formatDateTime } from "@/lib/utils"
-
-const STATUS_OPTIONS = [
-  { value: "failed", label: "失败" },
-  { value: "ignored", label: "已忽略" },
-  { value: "all", label: "全部" },
-] as const
-
-function statusLabel(status: string) {
-  if (status === "failed") return "失败"
-  if (status === "ignored") return "已忽略"
-  return status || "-"
-}
 
 function statusVariant(status: string) {
   if (status === "failed") return "destructive" as const
@@ -47,6 +36,7 @@ function OutboxActions({
   item: ChannelMessageOutbox
   reload: DashboardListRenderContext<ChannelMessageOutbox>["reload"]
 }) {
+  const t = useI18n()
   const [runningAction, setRunningAction] = useState<"retry" | "ignore" | null>(null)
 
   async function runAction(action: "retry" | "ignore") {
@@ -54,14 +44,14 @@ function OutboxActions({
     try {
       if (action === "retry") {
         await retryWxWorkOutbox(item.id)
-        toast.success("已重新加入发送队列")
+        toast.success(t("wxworkOutbox.retrySuccess"))
       } else {
         await ignoreWxWorkOutbox(item.id)
-        toast.success("已忽略该失败记录")
+        toast.success(t("wxworkOutbox.ignoreSuccess"))
       }
       await reload()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "操作失败")
+      toast.error(error instanceof Error ? error.message : t("wxworkOutbox.actionFailed"))
     } finally {
       setRunningAction(null)
     }
@@ -77,7 +67,7 @@ function OutboxActions({
         onClick={() => void runAction("retry")}
       >
         <RotateCcwIcon />
-        重试
+        {t("wxworkOutbox.retry")}
       </Button>
       {item.sendStatus === "failed" ? (
         <Button
@@ -88,7 +78,7 @@ function OutboxActions({
           onClick={() => void runAction("ignore")}
         >
           <BanIcon />
-          忽略
+          {t("wxworkOutbox.ignore")}
         </Button>
       ) : null}
     </div>
@@ -96,28 +86,42 @@ function OutboxActions({
 }
 
 export default function DashboardWxWorkOutboxPage() {
+  const t = useI18n()
+
+  const statusOptions = [
+    { value: "failed", label: t("wxworkOutbox.statusFailed") },
+    { value: "ignored", label: t("wxworkOutbox.statusIgnored") },
+    { value: "all", label: t("wxworkOutbox.statusAll") },
+  ]
+
+  const statusLabel = (status: string) => {
+    if (status === "failed") return t("wxworkOutbox.statusFailed")
+    if (status === "ignored") return t("wxworkOutbox.statusIgnored")
+    return status || "-"
+  }
+
   return (
     <DashboardListPage<ChannelMessageOutbox>
       filters={[
         {
           name: "sendStatus",
-          label: "状态",
+          label: t("wxworkOutbox.columnStatus"),
           defaultValue: "failed",
           type: "segment",
-          options: STATUS_OPTIONS,
+          options: statusOptions,
         },
         {
           name: "conversationId",
-          label: "会话 ID",
-          placeholder: "会话 ID",
+          label: t("wxworkOutbox.conversationId"),
+          placeholder: t("wxworkOutbox.conversationId"),
           defaultValue: "",
           valueType: "number",
           className: "w-full sm:w-40",
         },
         {
           name: "messageId",
-          label: "消息 ID",
-          placeholder: "消息 ID",
+          label: t("wxworkOutbox.messageId"),
+          placeholder: t("wxworkOutbox.messageId"),
           defaultValue: "",
           valueType: "number",
           className: "w-full sm:w-40",
@@ -134,18 +138,18 @@ export default function DashboardWxWorkOutboxPage() {
         },
         {
           key: "message",
-          label: "消息",
+          label: t("wxworkOutbox.columnMessage"),
           className: "w-48",
           render: (item) => (
             <div className="space-y-1 text-xs">
-              <div>会话 #{item.conversationId || "-"}</div>
-              <div className="text-muted-foreground">消息 #{item.messageId || "-"}</div>
+              <div>{t("wxworkOutbox.conversationLine", { id: String(item.conversationId || "-") })}</div>
+              <div className="text-muted-foreground">{t("wxworkOutbox.messageLine", { id: String(item.messageId || "-") })}</div>
             </div>
           ),
         },
         {
           key: "status",
-          label: "状态",
+          label: t("wxworkOutbox.columnStatus"),
           className: "w-28",
           render: (item) => (
             <Badge variant={statusVariant(item.sendStatus)}>
@@ -155,20 +159,20 @@ export default function DashboardWxWorkOutboxPage() {
         },
         {
           key: "retry",
-          label: "重试",
+          label: t("wxworkOutbox.columnRetry"),
           className: "w-44 text-xs",
           render: (item) => (
             <div className="space-y-1">
-              <div>{item.retryCount} 次</div>
+              <div>{t("wxworkOutbox.retriesCount", { count: String(item.retryCount) })}</div>
               <div className="text-muted-foreground">
-                下次 {formatOptionalTime(item.nextRetryAt)}
+                {t("wxworkOutbox.nextRetry", { time: formatOptionalTime(item.nextRetryAt) })}
               </div>
             </div>
           ),
         },
         {
           key: "error",
-          label: "失败原因",
+          label: t("wxworkOutbox.columnError"),
           className: "min-w-72 max-w-[32rem]",
           render: (item) =>
             item.lastError ? (
@@ -181,13 +185,13 @@ export default function DashboardWxWorkOutboxPage() {
         },
         {
           key: "updatedAt",
-          label: "更新时间",
+          label: t("wxworkOutbox.columnUpdatedAt"),
           className: "w-44 text-xs text-muted-foreground",
           render: (item) => formatOptionalTime(item.updatedAt),
         },
         {
           key: "actions",
-          label: <span className="block text-right">操作</span>,
+          label: <span className="block text-right">{t("wxworkOutbox.columnActions")}</span>,
           className: "w-44",
           render: (item, context) => (
             <OutboxActions item={item} reload={context.reload} />
@@ -195,11 +199,11 @@ export default function DashboardWxWorkOutboxPage() {
         },
       ]}
       labels={{
-        refresh: "刷新",
-        query: "查询",
-        loading: "正在加载企业微信 outbox...",
-        empty: "暂无失败 outbox",
-        loadFailed: "加载企业微信 outbox 失败",
+        refresh: t("wxworkOutbox.refresh"),
+        query: t("wxworkOutbox.query"),
+        loading: t("wxworkOutbox.loading"),
+        empty: t("wxworkOutbox.empty"),
+        loadFailed: t("wxworkOutbox.loadFailed"),
       }}
     />
   )

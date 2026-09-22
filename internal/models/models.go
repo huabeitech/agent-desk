@@ -1047,7 +1047,7 @@ type CommentReport struct {
 	CommentID int64     `gorm:"type:bigint;not null;index;uniqueIndex:uk_comment_report"`
 	UserID    int64     `gorm:"type:bigint;not null;index;uniqueIndex:uk_comment_report"`
 	Reason    string    `gorm:"type:varchar(255);not null;default:''"`
-	CreatedAt time.Time `gorm:"type:datetime;not null;index"`
+	CreatedAt time.Time `gorm:"not null;index"`
 }
 
 // KnowledgeRetrieveLog 检索日志表。

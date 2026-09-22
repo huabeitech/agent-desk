@@ -137,3 +137,60 @@ func createChannelServiceTestAgent(t *testing.T, db *gorm.DB, publishedRevisionI
 func channelServiceTestOperator() *dto.AuthPrincipal {
 	return &dto.AuthPrincipal{UserID: 1, Username: "admin"}
 }
+
+func TestGetEnabledEmailChannelByAddress_MultiTenantSlugResolution(t *testing.T) {
+	db := setupChannelServiceTestDB(t)
+	agent := createChannelServiceTestAgent(t, db, 1001)
+
+	// Create Channel 1 for DOS (help@dos.crove.io)
+	dosCfg := `{"emailAddress":"help@dos.crove.io","forwardingAddress":"help@dos.crove.io"}`
+	_, err := ChannelService.CreateChannel(request.CreateChannelRequest{
+		Name:                  "DOS Support Channel",
+		ChannelType:           enums.ChannelTypeEmail,
+		AIAgentID:             agent.ID,
+		AIAgentRolloutPercent: 100,
+		ConfigJSON:            dosCfg,
+		Status:                int(enums.StatusOk),
+	}, channelServiceTestOperator())
+	if err != nil {
+		t.Fatalf("create dos channel failed: %v", err)
+	}
+
+	// Create Channel 2 for Acme (help@acme.on.crove.email)
+	acmeCfg := `{"emailAddress":"support@acme.com","forwardingAddress":"help@acme.on.crove.email"}`
+	_, err = ChannelService.CreateChannel(request.CreateChannelRequest{
+		Name:                  "Acme Support Channel",
+		ChannelType:           enums.ChannelTypeEmail,
+		AIAgentID:             agent.ID,
+		AIAgentRolloutPercent: 100,
+		ConfigJSON:            acmeCfg,
+		Status:                int(enums.StatusOk),
+	}, channelServiceTestOperator())
+	if err != nil {
+		t.Fatalf("create acme channel failed: %v", err)
+	}
+
+	// Test 1: Exact match on EmailAddress
+	c1 := ChannelService.GetEnabledEmailChannelByAddress("help@dos.crove.io")
+	if c1 == nil || c1.Name != "DOS Support Channel" {
+		t.Fatalf("expected DOS Support Channel, got: %+v", c1)
+	}
+
+	// Test 2: Subdomain / Slug match (e.g. any sender addressing support@dos.crove.io)
+	c2 := ChannelService.GetEnabledEmailChannelByAddress("support@dos.crove.io")
+	if c2 == nil || c2.Name != "DOS Support Channel" {
+		t.Fatalf("expected DOS Support Channel from subdomain slug, got: %+v", c2)
+	}
+
+	// Test 3: Match on forwardingAddress (help@acme.on.crove.email)
+	c3 := ChannelService.GetEnabledEmailChannelByAddress("help@acme.on.crove.email")
+	if c3 == nil || c3.Name != "Acme Support Channel" {
+		t.Fatalf("expected Acme Support Channel, got: %+v", c3)
+	}
+
+	// Test 4: Slug match on Acme (sales@acme.on.crove.email)
+	c4 := ChannelService.GetEnabledEmailChannelByAddress("sales@acme.on.crove.email")
+	if c4 == nil || c4.Name != "Acme Support Channel" {
+		t.Fatalf("expected Acme Support Channel from on.crove.email slug, got: %+v", c4)
+	}
+}

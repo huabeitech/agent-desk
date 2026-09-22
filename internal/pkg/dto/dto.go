@@ -49,6 +49,19 @@ type ZaloOAChannelConfig struct {
 	WebhookSecret  string `json:"webhookSecret,omitempty"`
 	WelcomeMessage string `json:"welcomeMessage,omitempty"`
 }
+type EmailChannelConfig struct {
+	EmailAddress      string `json:"emailAddress"`                // e.g. help@dos.crove.io or support@company.com
+	ForwardingAddress string `json:"forwardingAddress,omitempty"` // e.g. help@dos.crove.io
+	SenderName        string `json:"senderName,omitempty"`        // e.g. Crove Desk Support
+	Provider          string `json:"provider,omitempty"`          // default | smtp | brevo | sendgrid | resend | postmark | mailgun
+	APIKey            string `json:"apiKey,omitempty"`            // Brevo / ESP API Key
+	SMTPHost          string `json:"smtpHost,omitempty"`          // SMTP Server Host
+	SMTPPort          int    `json:"smtpPort,omitempty"`          // SMTP Port (587/465)
+	SMTPUser          string `json:"smtpUser,omitempty"`          // SMTP Username
+	SMTPPassword      string `json:"smtpPassword,omitempty"`      // SMTP Password
+	WebhookSecret     string `json:"webhookSecret,omitempty"`     // Inbound Webhook Secret
+	WelcomeMessage    string `json:"welcomeMessage,omitempty"`    // Auto-responder / welcome message
+}
 
 type DiscordChannelConfig struct {
 	GuildID        string `json:"guildId,omitempty"`

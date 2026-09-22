@@ -1,6 +1,10 @@
 package services
 
 import (
+	"fmt"
+	"strings"
+	"time"
+
 	"agent-desk/internal/models"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/request"
@@ -8,8 +12,6 @@ import (
 	"agent-desk/internal/pkg/errorsx"
 	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/repositories"
-	"strings"
-	"time"
 
 	"agent-desk/internal/pkg/httpx/params"
 
@@ -80,6 +82,13 @@ func (s *companyService) CreateCompany(req request.CreateCompanyRequest, operato
 	if err := repositories.CompanyRepository.Create(sqls.DB(), item); err != nil {
 		return nil, err
 	}
+
+	WebhookSyncService.DispatchOutboundEvent("company.created", request.OrgSyncEventData{
+		DeskCompanyID: fmt.Sprintf("comp_%d", item.ID),
+		Name:          item.Name,
+		DomainName:    item.Remark,
+	})
+
 	return item, nil
 }
 

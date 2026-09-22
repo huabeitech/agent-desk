@@ -339,6 +339,7 @@ function ConversationTagSection({
 }
 
 function WorkflowRunsSection({ conversation }: { conversation: AgentConversation }) {
+  const t = useI18n();
   const [runs, setRuns] = useState<AIWorkflowRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -361,7 +362,7 @@ function WorkflowRunsSection({ conversation }: { conversation: AgentConversation
         }
       } catch (error) {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "加载 AI 执行记录失败");
+          toast.error(error instanceof Error ? error.message : t("workflowRun.loadLogsFailed"));
         }
       } finally {
         if (!cancelled) {
@@ -374,7 +375,7 @@ function WorkflowRunsSection({ conversation }: { conversation: AgentConversation
     return () => {
       cancelled = true;
     };
-  }, [conversation.id]);
+  }, [conversation.id, t]);
 
   async function openDetail(runId: number) {
     setDetailOpen(true);
@@ -383,7 +384,7 @@ function WorkflowRunsSection({ conversation }: { conversation: AgentConversation
       const data = await fetchAIWorkflowRun(runId);
       setActiveRun(data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "加载 AI 执行详情失败");
+      toast.error(error instanceof Error ? error.message : t("workflowRun.loadDetailFailed"));
       setDetailOpen(false);
     } finally {
       setDetailLoading(false);
@@ -392,9 +393,9 @@ function WorkflowRunsSection({ conversation }: { conversation: AgentConversation
 
   return (
     <section className="space-y-2 border-t pt-2">
-      <SectionHeading>AI 执行记录</SectionHeading>
+      <SectionHeading>{t("workflowRun.recordsTitle")}</SectionHeading>
       {loading ? (
-        <p className="text-sm text-muted-foreground">加载执行记录中</p>
+        <p className="text-sm text-muted-foreground">{t("workflowRun.loadingLogs")}</p>
       ) : runs.length > 0 ? (
         <div className="space-y-2">
           {runs.map((run) => (
@@ -432,7 +433,7 @@ function WorkflowRunsSection({ conversation }: { conversation: AgentConversation
           ))}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">暂无 AI 执行记录</p>
+        <p className="text-sm text-muted-foreground">{t("workflowRun.emptyLogs")}</p>
       )}
       <WorkflowRunDetailDialog
         open={detailOpen}
@@ -460,6 +461,8 @@ function WorkflowRunDetailDialog({
   run: AIWorkflowRun | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useI18n();
+
   return (
     <ProjectDialog
       open={open}
@@ -467,31 +470,31 @@ function WorkflowRunDetailDialog({
       title={
         <span className="flex items-center gap-2">
           <WorkflowIcon className="size-4" />
-          AI 执行详情
+          {t("workflowRun.detailTitle")}
         </span>
       }
-      description={run ? `Run #${run.id}` : "Workflow 执行链路"}
+      description={run ? `Run #${run.id}` : t("workflowRun.description")}
       size="xl"
       allowFullscreen
       footer={
         <Button variant="outline" onClick={() => onOpenChange(false)}>
-          关闭
+          {t("common.close")}
         </Button>
       }
     >
       {loading ? (
-        <div className="px-6 py-10 text-sm text-muted-foreground">加载执行详情中</div>
+        <div className="px-6 py-10 text-sm text-muted-foreground">{t("workflowRun.loadingDetail")}</div>
       ) : run ? (
         <div className="space-y-4 px-6 pb-6">
           <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 text-sm md:grid-cols-2">
-            <DetailRow label="Workflow" value={`#${run.workflowId} / v${run.workflowVersionId}`} />
-            <DetailRow label="会话" value={`#${run.conversationId}`} />
-            <DetailRow label="消息" value={`#${run.messageId}`} />
-            <DetailRow label="Agent" value={`#${run.aiAgentId}`} />
-            <DetailRow label="状态" value={run.statusName || String(run.status)} />
-            <DetailRow label="开始" value={run.startedAt ? formatDateTime(run.startedAt) : ""} />
-            <DetailRow label="结束" value={run.endedAt ? formatDateTime(run.endedAt) : ""} />
-            <DetailRow label="中断节点" value={run.interruptNodeId || ""} />
+            <DetailRow label={t("workflowRun.labelWorkflow")} value={`#${run.workflowId} / v${run.workflowVersionId}`} />
+            <DetailRow label={t("workflowRun.labelConversation")} value={`#${run.conversationId}`} />
+            <DetailRow label={t("workflowRun.labelMessage")} value={`#${run.messageId}`} />
+            <DetailRow label={t("workflowRun.labelAgent")} value={`#${run.aiAgentId}`} />
+            <DetailRow label={t("workflowRun.labelStatus")} value={run.statusName || String(run.status)} />
+            <DetailRow label={t("workflowRun.labelStartedAt")} value={run.startedAt ? formatDateTime(run.startedAt) : ""} />
+            <DetailRow label={t("workflowRun.labelEndedAt")} value={run.endedAt ? formatDateTime(run.endedAt) : ""} />
+            <DetailRow label={t("workflowRun.labelInterruptNode")} value={run.interruptNodeId || ""} />
           </div>
           {run.errorMessage ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -503,18 +506,19 @@ function WorkflowRunDetailDialog({
               <WorkflowNodeRunBlock key={node.id} node={node} />
             ))}
             {!run.nodes || run.nodes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无节点记录</p>
+              <p className="text-sm text-muted-foreground">{t("workflowRun.emptyNodes")}</p>
             ) : null}
           </div>
         </div>
       ) : (
-        <div className="px-6 py-10 text-sm text-muted-foreground">未找到执行记录</div>
+        <div className="px-6 py-10 text-sm text-muted-foreground">{t("workflowRun.emptyDetail")}</div>
       )}
     </ProjectDialog>
   );
 }
 
 function WorkflowNodeRunBlock({ node }: { node: AIWorkflowNodeRun }) {
+  const t = useI18n();
   const inputValue = safeParseJSON(node.inputPreview);
   const outputValue = safeParseJSON(node.outputPreview);
 
@@ -541,8 +545,8 @@ function WorkflowNodeRunBlock({ node }: { node: AIWorkflowNodeRun }) {
         </div>
       ) : null}
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <PreviewBlock title="输入" raw={node.inputPreview} value={inputValue} />
-        <PreviewBlock title="输出" raw={node.outputPreview} value={outputValue} />
+        <PreviewBlock title={t("workflowRun.input")} raw={node.inputPreview} value={inputValue} />
+        <PreviewBlock title={t("workflowRun.output")} raw={node.outputPreview} value={outputValue} />
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ var (
 
 type OrganizationClaim struct {
 	ID   string `json:"id"`
+	Slug string `json:"slug,omitempty"`
 	Name string `json:"name"`
 	Role string `json:"role"`
 }
@@ -47,6 +48,7 @@ type Profile struct {
 	PreferredUsername string              `json:"preferred_username,omitempty"`
 	Name              string              `json:"name,omitempty"`
 	Picture           string              `json:"picture,omitempty"`
+	ActiveOrgID       string              `json:"active_org_id,omitempty"`
 	Organizations     []OrganizationClaim `json:"organizations,omitempty"`
 	RawProfile        string              `json:"-"`
 }
@@ -102,13 +104,25 @@ func Init(ctx context.Context) error {
 	}
 	scopes := cfg.Scopes
 	if len(scopes) == 0 {
-		scopes = []string{gooidc.ScopeOpenID, "profile", "email"}
+		scopes = []string{gooidc.ScopeOpenID, "profile", "email", "offline_access"}
 	}
+	endpoint := p.Endpoint()
+	authStyle := oauth2.AuthStyleInHeader
+	switch strings.ToLower(strings.TrimSpace(cfg.AuthStyle)) {
+	case "post", "params", "inparams", "client_secret_post":
+		authStyle = oauth2.AuthStyleInParams
+	case "basic", "header", "inheader", "client_secret_basic":
+		authStyle = oauth2.AuthStyleInHeader
+	case "auto", "autodetect":
+		authStyle = oauth2.AuthStyleAutoDetect
+	}
+	endpoint.AuthStyle = authStyle
+
 	provider = p
 	oauthConfig = &oauth2.Config{
 		ClientID:     strings.TrimSpace(cfg.ClientID),
 		ClientSecret: strings.TrimSpace(cfg.ClientSecret),
-		Endpoint:     p.Endpoint(),
+		Endpoint:     endpoint,
 		RedirectURL:  strings.TrimSpace(cfg.RedirectURL),
 		Scopes:       scopes,
 	}
@@ -298,6 +312,7 @@ func profileFromIDToken(idToken *gooidc.IDToken) (*Profile, error) {
 		PreferredUsername: firstNonEmpty(claimString(claims, "preferred_username"), claimString(claims, "user_name"), claimString(claims, "nickname")),
 		Name:              firstNonEmpty(claimString(claims, "name"), claimString(claims, "full_name")),
 		Picture:           firstNonEmpty(claimString(claims, "picture"), claimString(claims, "avatar_url")),
+		ActiveOrgID:       firstNonEmpty(claimString(claims, "active_org_id"), claimString(claims, "activeOrgId")),
 		Organizations:     claimOrganizations(claims),
 		RawProfile:        string(raw),
 	}
@@ -319,6 +334,7 @@ func profileFromUserInfo(userInfo *gooidc.UserInfo, fallback *Profile) (*Profile
 		PreferredUsername: firstNonEmpty(claimString(claims, "preferred_username"), claimString(claims, "user_name"), claimString(claims, "nickname")),
 		Name:              firstNonEmpty(claimString(claims, "name"), claimString(claims, "full_name")),
 		Picture:           firstNonEmpty(claimString(claims, "picture"), claimString(claims, "avatar_url")),
+		ActiveOrgID:       firstNonEmpty(claimString(claims, "active_org_id"), claimString(claims, "activeOrgId")),
 		Organizations:     claimOrganizations(claims),
 		RawProfile:        string(raw),
 	}
@@ -327,6 +343,9 @@ func profileFromUserInfo(userInfo *gooidc.UserInfo, fallback *Profile) (*Profile
 		profile.PreferredUsername = firstNonEmpty(profile.PreferredUsername, fallback.PreferredUsername)
 		profile.Name = firstNonEmpty(profile.Name, fallback.Name)
 		profile.Picture = firstNonEmpty(profile.Picture, fallback.Picture)
+		if profile.ActiveOrgID == "" {
+			profile.ActiveOrgID = fallback.ActiveOrgID
+		}
 		if len(profile.Organizations) == 0 {
 			profile.Organizations = fallback.Organizations
 		}
@@ -363,12 +382,14 @@ func claimOrganizations(claims map[string]any) []OrganizationClaim {
 	var list []map[string]any
 	if err := json.Unmarshal(bytes, &list); err == nil {
 		for _, item := range list {
-			id := firstNonEmpty(claimString(item, "id"), claimString(item, "org_id"), claimString(item, "code"))
-			name := firstNonEmpty(claimString(item, "name"), claimString(item, "org_name"), id)
+			id := firstNonEmpty(claimString(item, "id"), claimString(item, "org_id"), claimString(item, "slug"), claimString(item, "code"))
+			slug := claimString(item, "slug")
+			name := firstNonEmpty(claimString(item, "name"), claimString(item, "org_name"), slug, id)
 			role := firstNonEmpty(claimString(item, "role"), "MEMBER")
 			if id != "" {
 				orgs = append(orgs, OrganizationClaim{
 					ID:   id,
+					Slug: slug,
 					Name: name,
 					Role: strings.ToUpper(role),
 				})

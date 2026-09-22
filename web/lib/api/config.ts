@@ -4,6 +4,7 @@ export type PublicConfig = {
   language: string
   companyName?: string
   companyLogoUrl?: string
+  companyFaviconUrl?: string
   passwordLoginEnabled?: boolean
   wxworkEnabled: boolean
   oidcEnabled: boolean

@@ -41,6 +41,12 @@ func Init(configPath string) error {
 		slog.Error("init vector db failed", "error", err)
 		return err
 	}
+	if err := InitAI(cfg); err != nil {
+		slog.Warn("init AI config failed", "error", err)
+	}
+	if err := InitDefaultKnowledgeBase(); err != nil {
+		slog.Warn("init default knowledge base failed", "error", err)
+	}
 
 	// 启动任务调度器
 	cronx.Init()

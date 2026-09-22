@@ -3,6 +3,10 @@
 .idea
 .pnpm-store
 
+.env
+.env.*
+!.env.example
+
 data/
 config/config.yaml
 .env

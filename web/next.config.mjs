@@ -1,24 +1,24 @@
-import type { NextConfig } from "next"
-import { PHASE_DEVELOPMENT_SERVER } from "next/constants"
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
 
 const backendBaseUrl =
   process.env.NEXT_API_BASE_URL?.trim() ||
   process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
-  "http://127.0.0.1:8083"
-const productionBasePath = ""
+  "http://127.0.0.1:8083";
+const productionBasePath = "";
 
-export default function nextConfig(phase: string): NextConfig {
-  const config: NextConfig = {
+/** @type {(phase: string) => import('next').NextConfig} */
+export default function nextConfig(phase) {
+  const config = {
     output: "export",
     basePath: productionBasePath,
     assetPrefix: `${productionBasePath}/`,
     trailingSlash: false,
     devIndicators: false,
     reactStrictMode: false,
-  }
+  };
 
   if (phase !== PHASE_DEVELOPMENT_SERVER) {
-    return config
+    return config;
   }
 
   return {
@@ -45,7 +45,7 @@ export default function nextConfig(phase: string): NextConfig {
           source: "/storage/:path*",
           destination: `${backendBaseUrl}/storage/:path*`,
         },
-      ]
+      ];
     },
-  }
+  };
 }

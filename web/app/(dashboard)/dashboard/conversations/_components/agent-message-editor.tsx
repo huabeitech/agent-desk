@@ -13,7 +13,7 @@ import { fetchQuickReplyListAll, type AdminQuickReply } from "@/lib/api/admin"
 type AgentMessageEditorProps = {
   disabled?: boolean
   uploadingAsset?: boolean
-  onSend: (html: string) => Promise<void>
+  onSend: (html: string, messageType?: "html" | "note") => Promise<void>
   onUploadImage: (file: File) => Promise<UploadedMessageEditorImage | null>
   onSendAttachment: (file: File) => Promise<void>
 }

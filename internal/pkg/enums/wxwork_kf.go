@@ -23,6 +23,7 @@ const (
 	ChannelTypeWxWorkKF = "wxwork_kf"
 	ChannelTypeTelegram = "telegram"
 	ChannelTypeZaloOA   = "zalo_oa"
+	ChannelTypeEmail    = "email"
 	ChannelTypeDiscord  = "discord"
 )
 

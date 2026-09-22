@@ -1,0 +1,180 @@
+name: Sync Upstream & Build Images
+
+on:
+  schedule:
+    # Check for upstream releases every 6 hours
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      upstream_tag:
+        description: "Specific upstream tag/release to sync (e.g. v0.3.0). Leave empty for latest release."
+        required: false
+        default: ""
+      force_build:
+        description: "Force sync and image build even if tag exists"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: "huabeitech/agent-desk"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: dos/crove-desk
+
+jobs:
+  check-and-sync:
+    name: Check & Sync Upstream Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      has_new_release: ${{ steps.sync.outputs.has_new_release }}
+      synced_tag: ${{ steps.sync.outputs.synced_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Upstream & Merge
+        id: sync
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ github.event.inputs.upstream_tag }}
+          FORCE_BUILD: ${{ github.event.inputs.force_build }}
+        run: |
+          set -e
+
+          # 1. Determine target tag from upstream
+          if [ -n "$INPUT_TAG" ]; then
+            TARGET_TAG="$INPUT_TAG"
+            echo "Using specified target tag: $TARGET_TAG"
+          else
+            echo "Fetching latest release from upstream ($UPSTREAM_REPO)..."
+            LATEST_JSON=$(gh api repos/$UPSTREAM_REPO/releases/latest || echo "{}")
+            TARGET_TAG=$(echo "$LATEST_JSON" | jq -r '.tag_name // empty')
+            if [ -z "$TARGET_TAG" ]; then
+              echo "No releases found via releases API, checking tags..."
+              TARGET_TAG=$(gh api repos/$UPSTREAM_REPO/tags --jq '.[0].name // empty')
+            fi
+          fi
+
+          if [ -z "$TARGET_TAG" ]; then
+            echo "No upstream tag or release found to sync."
+            echo "has_new_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Target upstream tag: $TARGET_TAG"
+
+          # 2. Check if tag already exists in origin repository
+          TAG_EXISTS=false
+          if git ls-remote --tags origin "refs/tags/$TARGET_TAG" | grep -q "$TARGET_TAG"; then
+            TAG_EXISTS=true
+          fi
+
+          if [ "$TAG_EXISTS" = "true" ] && [ "$FORCE_BUILD" != "true" ]; then
+            echo "Tag $TARGET_TAG has already been synced to this repository. No sync needed."
+            echo "has_new_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Proceeding with sync for upstream tag $TARGET_TAG..."
+
+          # 3. Configure Git author
+          git config user.name "JOY"
+          git config user.email "5027251+JOY@users.noreply.github.com"
+
+          # 4. Fetch upstream
+          git remote add upstream "https://github.com/$UPSTREAM_REPO.git" || git remote set-url upstream "https://github.com/$UPSTREAM_REPO.git"
+          git fetch upstream --tags
+
+          # 5. Merge upstream tag into dev branch
+          git checkout dev
+          echo "Merging upstream tag $TARGET_TAG into dev..."
+          git merge --no-edit -m "chore(upstream): sync upstream release $TARGET_TAG into dev" "$TARGET_TAG" || {
+            echo "Merge conflict encountered during upstream sync."
+            echo "Creating a sync branch instead..."
+            SYNC_BRANCH="sync/upstream-$TARGET_TAG"
+            git merge --abort || true
+            git checkout -b "$SYNC_BRANCH" "$TARGET_TAG"
+            git push -u origin "$SYNC_BRANCH" --force
+            gh pr create --base dev --head "$SYNC_BRANCH" \
+              --title "chore(upstream): sync upstream release $TARGET_TAG" \
+              --body "Automated PR to sync upstream release \`$TARGET_TAG\` from \`$UPSTREAM_REPO\`. Please resolve merge conflicts."
+            echo "has_new_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          # Push updated dev branch
+          git push origin dev
+
+          # 6. Create or update tag on our repository
+          if [ "$TAG_EXISTS" != "true" ]; then
+            git push origin "$TARGET_TAG" || true
+
+            # Create GitHub Release with release notes
+            UPSTREAM_BODY=$(gh api repos/$UPSTREAM_REPO/releases/tags/$TARGET_TAG --jq '.body // "Release synced from upstream."' || echo "Release synced from upstream.")
+            gh release create "$TARGET_TAG" \
+              --title "$TARGET_TAG (Upstream Sync)" \
+              --notes "$UPSTREAM_BODY" || true
+          fi
+
+          echo "has_new_release=true" >> $GITHUB_OUTPUT
+          echo "synced_tag=$TARGET_TAG" >> $GITHUB_OUTPUT
+
+  build-and-push-images:
+    name: Build & Push Beta & Production Images
+    needs: check-and-sync
+    if: needs.check-and-sync.outputs.has_new_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: app
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:beta
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-and-sync.outputs.synced_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "### 🚀 Upstream Release Sync Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Synced Tag**: \`${{ needs.check-and-sync.outputs.synced_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch Merged**: \`dev\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Beta Image Built**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:beta\` (Auto-deployable to Beta)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Production Artifacts Built**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-and-sync.outputs.synced_tag }}\` & \`:latest\` (Stored on GHCR, ready for manual/staged promotion)" >> $GITHUB_STEP_SUMMARY

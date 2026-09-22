@@ -8,15 +8,15 @@ const providerSource = await readFile(
   "utf8",
 ).catch(() => "");
 const workbenchLayoutSource = await readFile(
-  new URL("../app/workbench/layout.tsx", import.meta.url),
+  new URL("../app/(dashboard)/workbench/layout.tsx", import.meta.url),
   "utf8",
 );
 const dashboardConversationsPageSource = await readFile(
-  new URL("../app/dashboard/conversations/page.tsx", import.meta.url),
+  new URL("../app/(dashboard)/dashboard/conversations/page.tsx", import.meta.url),
   "utf8",
 );
 const conversationWorkbenchSource = await readFile(
-  new URL("../app/dashboard/conversations/_components/conversation-workbench.tsx", import.meta.url),
+  new URL("../app/(dashboard)/dashboard/conversations/_components/conversation-workbench.tsx", import.meta.url),
   "utf8",
 );
 

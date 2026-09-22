@@ -1,10 +1,12 @@
 import { DEFAULT_LOCALE, type AppLocale, readStoredLocale } from "@/i18n/config"
 import enUSMessages from "@/messages/en-US.json"
+import viVNMessages from "@/messages/vi-VN.json"
 import zhCNMessages from "@/messages/zh-CN.json"
 
 const messages = {
   "zh-CN": zhCNMessages,
   "en-US": enUSMessages,
+  "vi-VN": viVNMessages,
 } satisfies Record<AppLocale, typeof zhCNMessages>
 
 export function translateMessage(

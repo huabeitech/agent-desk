@@ -255,11 +255,11 @@ export function ChatPanel() {
     }
   };
 
-  const handleSend = async (html: string) => {
+  const handleSend = async (html: string, messageType?: "html" | "note") => {
     if (!conversation || sending || isClosedConversation) return;
     try {
       shouldStickToBottomRef.current = true;
-      await sendMessage(html);
+      await sendMessage(html, messageType);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("conversation.sendMessageFailed"));
     }
@@ -600,13 +600,16 @@ const MessageItem = memo(
       ? "[&_p]:text-emerald-800"
       : "[&_p]:text-muted-foreground";
     const showRecallAction = canRecall && !isRecalled;
+    const isNote = message.messageType === "note";
     const bubbleVariant = isRecalled
       ? "recalled"
-      : isAi
-        ? "ai"
-        : isAgentSide
-          ? "agent"
-          : "customer";
+      : isNote
+        ? "note"
+        : isAi
+          ? "ai"
+          : isAgentSide
+            ? "agent"
+            : "customer";
 
     return (
       <div
@@ -617,8 +620,13 @@ const MessageItem = memo(
         {isAgentSide ? (
           <>
             <div className="flex max-w-[70%] flex-col items-end">
-              <div className="mb-1 text-xs text-muted-foreground">
-                {senderName}
+              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                {isNote ? (
+                  <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-200 border border-amber-500/30">
+                    🔒 {t("conversation.internalNoteBadge")}
+                  </span>
+                ) : null}
+                <span>{senderName}</span>
               </div>
               <ConversationMessageBubble
                 variant={bubbleVariant}

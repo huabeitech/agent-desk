@@ -2,6 +2,7 @@ package services
 
 import (
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/config"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/request"
 	"agent-desk/internal/pkg/dto/response"
@@ -10,10 +11,14 @@ import (
 	"agent-desk/internal/pkg/httpx"
 	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/repositories"
+	"agent-desk/internal/telegram"
 	"agent-desk/internal/wxwork"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -90,6 +95,7 @@ func (s *channelService) CreateChannel(req request.CreateChannelRequest, operato
 	if err := repositories.ChannelRepository.Create(sqls.DB(), item); err != nil {
 		return nil, err
 	}
+	go s.syncTelegramWebhook(item, item.Status)
 	return item, nil
 }
 
@@ -121,7 +127,11 @@ func (s *channelService) UpdateChannel(req request.UpdateChannelRequest, operato
 	if item.AIAgentRolloutPercent != current.AIAgentRolloutPercent {
 		columns["previous_ai_agent_rollout_percent"] = current.AIAgentRolloutPercent
 	}
-	return repositories.ChannelRepository.Updates(sqls.DB(), req.ID, columns)
+	if err := repositories.ChannelRepository.Updates(sqls.DB(), req.ID, columns); err != nil {
+		return err
+	}
+	go s.syncTelegramWebhook(item, item.Status)
+	return nil
 }
 
 // RollbackChannelAIAgentRollout restores the last channel-level rollout value
@@ -162,12 +172,16 @@ func (s *channelService) UpdateStatus(id int64, status int, operator *dto.AuthPr
 	if status != int(enums.StatusOk) && status != int(enums.StatusDisabled) {
 		return errorsx.InvalidParamI18n("error.e0254")
 	}
-	return s.Updates(id, map[string]any{
+	err := s.Updates(id, map[string]any{
 		"status":           status,
 		"update_user_id":   operator.UserID,
 		"update_user_name": operator.Username,
 		"updated_at":       time.Now(),
 	})
+	if err == nil {
+		go s.syncTelegramWebhook(item, enums.Status(status))
+	}
+	return err
 }
 
 func (s *channelService) DeleteChannel(id int64, operator *dto.AuthPrincipal) error {
@@ -178,12 +192,56 @@ func (s *channelService) DeleteChannel(id int64, operator *dto.AuthPrincipal) er
 	if item == nil || item.Status == enums.StatusDeleted {
 		return errorsx.InvalidParamI18n("error.e0208")
 	}
-	return s.Updates(id, map[string]any{
+	err := s.Updates(id, map[string]any{
 		"status":           enums.StatusDeleted,
 		"update_user_id":   operator.UserID,
 		"update_user_name": operator.Username,
 		"updated_at":       time.Now(),
 	})
+	if err == nil {
+		go s.syncTelegramWebhook(item, enums.StatusDeleted)
+	}
+	return err
+}
+
+func (s *channelService) syncTelegramWebhook(channel *models.Channel, targetStatus enums.Status) {
+	if channel == nil || channel.ChannelType != enums.ChannelTypeTelegram {
+		return
+	}
+	cfg, err := s.ParseTelegramChannelConfig(channel.ConfigJSON)
+	if err != nil || cfg == nil || cfg.BotToken == "" {
+		return
+	}
+
+	client := telegram.NewClient(cfg.BotToken)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if targetStatus == enums.StatusOk {
+		serverCfg := config.GetCurrent()
+		publicBaseURL := ""
+		if serverCfg != nil {
+			publicBaseURL = serverCfg.Server.GetPublicBaseURL(serverCfg.OIDC.RedirectURL)
+		}
+		if publicBaseURL != "" {
+			webhookURL := fmt.Sprintf("%s/api/third/telegram/webhook/%s", publicBaseURL, channel.ChannelID)
+			req := telegram.SetWebhookRequest{
+				URL:         webhookURL,
+				SecretToken: cfg.WebhookSecret,
+			}
+			if err := client.SetWebhook(ctx, req); err != nil {
+				slog.Warn("auto set telegram webhook failed", "channel_id", channel.ChannelID, "url", webhookURL, "error", err)
+			} else {
+				slog.Info("auto set telegram webhook succeeded", "channel_id", channel.ChannelID, "url", webhookURL)
+			}
+		}
+	} else {
+		if err := client.DeleteWebhook(ctx); err != nil {
+			slog.Warn("auto delete telegram webhook failed", "channel_id", channel.ChannelID, "error", err)
+		} else {
+			slog.Info("auto delete telegram webhook succeeded", "channel_id", channel.ChannelID)
+		}
+	}
 }
 
 func (s *channelService) ParseWxWorkKFChannelConfig(raw string) (*dto.WxWorkKFChannelConfig, error) {
@@ -333,6 +391,36 @@ func (s *channelService) ParseZaloOAChannelConfig(raw string) (*dto.ZaloOAChanne
 	return cfg, nil
 }
 
+func (s *channelService) ParseEmailChannelConfig(raw string) (*dto.EmailChannelConfig, error) {
+	raw = strings.TrimSpace(raw)
+	cfg := &dto.EmailChannelConfig{
+		Provider: "smtp",
+	}
+	if raw != "" {
+		if err := json.Unmarshal([]byte(raw), cfg); err != nil {
+			return nil, err
+		}
+	}
+	cfg.EmailAddress = strings.ToLower(strings.TrimSpace(cfg.EmailAddress))
+	cfg.ForwardingAddress = strings.ToLower(strings.TrimSpace(cfg.ForwardingAddress))
+	cfg.SenderName = strings.TrimSpace(cfg.SenderName)
+	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
+	if cfg.Provider == "" {
+		if cfg.APIKey != "" {
+			cfg.Provider = "brevo"
+		} else {
+			cfg.Provider = "smtp"
+		}
+	}
+	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
+	cfg.SMTPHost = strings.TrimSpace(cfg.SMTPHost)
+	cfg.SMTPUser = strings.TrimSpace(cfg.SMTPUser)
+	cfg.SMTPPassword = strings.TrimSpace(cfg.SMTPPassword)
+	cfg.WebhookSecret = strings.TrimSpace(cfg.WebhookSecret)
+	cfg.WelcomeMessage = strings.TrimSpace(cfg.WelcomeMessage)
+	return cfg, nil
+}
+
 func (s *channelService) ParseDiscordChannelConfig(raw string) (*dto.DiscordChannelConfig, error) {
 	raw = strings.TrimSpace(raw)
 	cfg := &dto.DiscordChannelConfig{}
@@ -454,6 +542,100 @@ func (s *channelService) GetEnabledWxWorkKFChannelByOpenKfID(openKfID string) *m
 	return nil
 }
 
+func (s *channelService) GetEnabledEmailChannelByAddress(emailAddress string) *models.Channel {
+	emailAddress = strings.ToLower(strings.TrimSpace(emailAddress))
+	if emailAddress == "" {
+		return nil
+	}
+	channels := s.Find(sqls.NewCnd().
+		Eq("channel_type", enums.ChannelTypeEmail).
+		Eq("status", enums.StatusOk).
+		Asc("id"))
+	if len(channels) == 0 {
+		return nil
+	}
+
+	// 1. Pass 1: Exact match with EmailAddress or ForwardingAddress
+	for i := range channels {
+		cfg, err := s.ParseEmailChannelConfig(channels[i].ConfigJSON)
+		if err != nil {
+			continue
+		}
+		if cfg != nil {
+			if strings.ToLower(strings.TrimSpace(cfg.EmailAddress)) == emailAddress ||
+				strings.ToLower(strings.TrimSpace(cfg.ForwardingAddress)) == emailAddress {
+				return &channels[i]
+			}
+		}
+	}
+
+	// 2. Pass 2: Extract tenant slug (e.g. help@dos.crove.io -> "dos", help@dos.on.crove.email -> "dos", help+dos@... -> "dos")
+	slug := extractTenantSlugFromEmail(emailAddress)
+	if slug != "" {
+		for i := range channels {
+			cfg, err := s.ParseEmailChannelConfig(channels[i].ConfigJSON)
+			if err != nil {
+				continue
+			}
+			channelIDLower := strings.ToLower(channels[i].ChannelID)
+			if channelIDLower == "email_"+slug || channelIDLower == slug || strings.Contains(channelIDLower, slug) {
+				return &channels[i]
+			}
+			if cfg != nil {
+				cfgEmailLower := strings.ToLower(cfg.EmailAddress)
+				cfgFwdLower := strings.ToLower(cfg.ForwardingAddress)
+				if strings.Contains(cfgEmailLower, "@"+slug+".") ||
+					strings.Contains(cfgEmailLower, "+"+slug+"@") ||
+					strings.Contains(cfgFwdLower, "@"+slug+".") ||
+					strings.Contains(cfgFwdLower, "+"+slug+"@") {
+					return &channels[i]
+				}
+			}
+		}
+
+		// Also check if Organization exists with code == slug
+		org := repositories.OrganizationRepository.GetByCode(sqls.DB(), slug)
+		if org != nil {
+			for i := range channels {
+				if strings.EqualFold(channels[i].Name, org.Name) ||
+					strings.Contains(strings.ToLower(channels[i].Name), slug) {
+					return &channels[i]
+				}
+			}
+		}
+	}
+
+	// 3. Pass 3: Fallback to first active email channel
+	return &channels[0]
+}
+
+func extractTenantSlugFromEmail(emailAddress string) string {
+	emailAddress = strings.ToLower(strings.TrimSpace(emailAddress))
+	parts := strings.Split(emailAddress, "@")
+	if len(parts) != 2 {
+		return ""
+	}
+	localPart, domain := parts[0], parts[1]
+
+	// Check plus addressing (e.g. help+dos@crove.io -> "dos")
+	if strings.Contains(localPart, "+") {
+		plusParts := strings.Split(localPart, "+")
+		if len(plusParts) > 1 && plusParts[1] != "" {
+			return plusParts[1]
+		}
+	}
+
+	// Check subdomains (e.g. dos.crove.io -> "dos", dos.on.crove.email -> "dos")
+	domainParts := strings.Split(domain, ".")
+	if len(domainParts) >= 3 {
+		if domainParts[0] != "mail" && domainParts[0] != "smtp" && domainParts[0] != "email" && domainParts[0] != "inbound" {
+			return domainParts[0]
+		}
+	}
+
+	return ""
+}
+
 func (s *channelService) GetEnabledChannel(ctx *gin.Context) *models.Channel {
 	channelID := httpx.GetChannelID(ctx)
 	channel := repositories.ChannelRepository.GetByChannelID(sqls.DB(), channelID)
@@ -468,7 +650,7 @@ func (s *channelService) GetEnabledChannel(ctx *gin.Context) *models.Channel {
 
 func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRequest) (*models.Channel, error) {
 	channelType := strings.TrimSpace(req.ChannelType)
-	if channelType != enums.ChannelTypeWeb && channelType != enums.ChannelTypeWechatMP && channelType != enums.ChannelTypeWxWorkKF && channelType != enums.ChannelTypeTelegram && channelType != enums.ChannelTypeZaloOA && channelType != enums.ChannelTypeDiscord {
+	if channelType != enums.ChannelTypeWeb && channelType != enums.ChannelTypeWechatMP && channelType != enums.ChannelTypeWxWorkKF && channelType != enums.ChannelTypeTelegram && channelType != enums.ChannelTypeZaloOA && channelType != enums.ChannelTypeEmail && channelType != enums.ChannelTypeDiscord {
 		return nil, errorsx.InvalidParamI18n("error.e0250")
 	}
 	name := strings.TrimSpace(req.Name)
@@ -609,6 +791,30 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 		}
 		if cfg == nil || cfg.AccessToken == "" {
 			return nil, errorsx.InvalidParam("zalo oa accessToken is required")
+		}
+		configBytes, err := json.Marshal(cfg)
+		if err != nil {
+			return nil, err
+		}
+		configJSON = string(configBytes)
+	case enums.ChannelTypeEmail:
+		if channelID == "" {
+			channelID = strs.UUID()
+		}
+		if exists := s.Take("channel_id = ? AND status <> ? AND id <> ?", channelID, enums.StatusDeleted, id); exists != nil {
+			return nil, errorsx.InvalidParamI18n("error.e0248")
+		}
+		cfg, err := s.ParseEmailChannelConfig(configJSON)
+		if err != nil {
+			return nil, errorsx.InvalidParam("invalid email channel configuration")
+		}
+		if cfg == nil || cfg.EmailAddress == "" {
+			return nil, errorsx.InvalidParam("emailAddress is required")
+		}
+		if cfg.WebhookSecret == "" {
+			if secret, err := generateUserTokenSecret(); err == nil {
+				cfg.WebhookSecret = secret
+			}
 		}
 		configBytes, err := json.Marshal(cfg)
 		if err != nil {

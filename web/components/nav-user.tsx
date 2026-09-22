@@ -6,6 +6,7 @@ import { useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { useI18n } from "@/i18n/provider"
 import { ChangePasswordDialog } from "@/components/change-password-dialog"
+import { LanguageToggle } from "@/components/language-toggle"
 import { useNotifications } from "@/components/notification-provider"
 import { PaletteToggle } from "@/components/palette-toggle"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -103,6 +104,7 @@ export function NavUser({
                   {t("nav.preferences")}
                 </DropdownMenuLabel>
                 <div className="flex items-center gap-2 px-2 pb-2">
+                  <LanguageToggle />
                   <PaletteToggle />
                   <ThemeToggle />
                 </div>

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAppLocale, useI18n } from "@/i18n/provider"
 import { fetchPublicConfig, type PublicConfig } from "@/lib/api/config"
 import enUSMessages from "@/messages/en-US.json"
+import viVNMessages from "@/messages/vi-VN.json"
 import zhCNMessages from "@/messages/zh-CN.json"
 
 type LegalPageType = "terms" | "privacy"
@@ -26,9 +27,10 @@ type LegalDocument = {
   sections: LegalSection[]
 }
 
-const messages = {
+const messages: Record<string, { legal: Record<LegalPageType, LegalDocument> }> = {
   "zh-CN": zhCNMessages,
   "en-US": enUSMessages,
+  "vi-VN": viVNMessages as unknown as { legal: Record<LegalPageType, LegalDocument> },
 }
 
 export function LegalDocumentPage({ type }: { type: LegalPageType }) {

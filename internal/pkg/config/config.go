@@ -4,6 +4,7 @@ import (
 	"agent-desk/internal/pkg/enums"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,12 +21,14 @@ type Config struct {
 	Auth            AuthConfig            `yaml:"auth"`
 	Storage         StorageConfig         `yaml:"storage"`
 	VectorDB        VectorDBConfig        `yaml:"vectorDB"`
+	AI              AIConfig              `yaml:"ai"`
 	MCP             MCPConfig             `yaml:"mcp"`
 	WxWork          WxWorkConfig          `yaml:"wxWork"`
 	OIDC            OIDCConfig            `yaml:"oidc"`
 	CustomerSession CustomerSessionConfig `yaml:"customerSession"`
 	Webhook         WebhookConfig         `yaml:"webhook"`
 	Discord         DiscordConfig         `yaml:"discord"`
+	Email           EmailConfig           `yaml:"email"`
 }
 
 func (c Config) LanguageOrDefault() string {
@@ -48,10 +51,12 @@ type WxWorkNotifyConfig struct {
 }
 
 type ServerConfig struct {
-	Port           int        `yaml:"port"`
-	CompanyName    string     `yaml:"companyName"`
-	CompanyLogoURL string     `yaml:"companyLogoUrl"`
-	CORS           CORSConfig `yaml:"cors"`
+	Port              int        `yaml:"port"`
+	PublicURL         string     `yaml:"publicUrl"`
+	CompanyName       string     `yaml:"companyName"`
+	CompanyLogoURL    string     `yaml:"companyLogoUrl"`
+	CompanyFaviconURL string     `yaml:"companyFaviconUrl"`
+	CORS              CORSConfig `yaml:"cors"`
 	// TrustedProxies are the CIDR blocks of the reverse proxies that sit in front
 	// of the application. Gin's own default is 0.0.0.0/0 and ::/0, which trusts
 	// every peer and makes ClientIP() return the leftmost X-Forwarded-For value -
@@ -119,6 +124,18 @@ func (s ServerConfig) Address() string {
 		return ":8080"
 	}
 	return fmt.Sprintf(":%d", s.Port)
+}
+
+func (s ServerConfig) GetPublicBaseURL(oidcRedirectURL string) string {
+	if strings.TrimSpace(s.PublicURL) != "" {
+		return strings.TrimRight(strings.TrimSpace(s.PublicURL), "/")
+	}
+	if strings.TrimSpace(oidcRedirectURL) != "" {
+		if u, err := url.Parse(strings.TrimSpace(oidcRedirectURL)); err == nil && u.Scheme != "" && u.Host != "" {
+			return fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+		}
+	}
+	return ""
 }
 
 type CORSConfig struct {
@@ -261,6 +278,17 @@ type VectorDBConfig struct {
 	LanceDB LanceDBVectorDBConfig `yaml:"lancedb"`
 }
 
+type AIConfig struct {
+	Provider           string `yaml:"provider"`
+	BaseURL            string `yaml:"baseUrl"`
+	APIKey             string `yaml:"apiKey"`
+	LLMModel           string `yaml:"llmModel"`
+	EmbeddingModel     string `yaml:"embeddingModel"`
+	EmbeddingDimension int    `yaml:"embeddingDimension"`
+	TimeoutMS          int    `yaml:"timeoutMs"`
+	MaxRetryCount      int    `yaml:"maxRetryCount"`
+}
+
 type QdrantVectorDBConfig struct {
 	Host     string `yaml:"host"`
 	GrpcPort int    `yaml:"grpcPort"`
@@ -289,6 +317,7 @@ type OIDCConfig struct {
 	Issuer       string   `yaml:"issuer"`
 	ClientID     string   `yaml:"clientId"`
 	ClientSecret string   `yaml:"clientSecret"`
+	AuthStyle    string   `yaml:"authStyle"`
 	RedirectURL  string   `yaml:"redirectUrl"`
 	StateSecret  string   `yaml:"stateSecret"`
 	Scopes       []string `yaml:"scopes"`
@@ -334,6 +363,20 @@ type WxWorkConfig struct {
 type WebhookConfig struct {
 	OrgSyncSecret    string `yaml:"orgSyncSecret"`
 	DOSOrgSyncSecret string `yaml:"dosOrgSyncSecret"`
+	OutboundURL      string `yaml:"outboundUrl"`
+}
+
+type EmailConfig struct {
+	Provider      string `yaml:"provider"`
+	FromAddress   string `yaml:"fromAddress"`
+	FromName      string `yaml:"fromName"`
+	APIKey        string `yaml:"apiKey"`
+	SMTPHost      string `yaml:"smtpHost"`
+	SMTPPort      int    `yaml:"smtpPort"`
+	SMTPUser      string `yaml:"smtpUser"`
+	SMTPPassword  string `yaml:"smtpPassword"`
+	SMTPUseTLS    bool   `yaml:"smtpUseTls"`
+	InboundSecret string `yaml:"inboundSecret"`
 }
 
 // DiscordConfig holds deployment-wide Discord bot credentials. A channel may
@@ -403,8 +446,12 @@ func loadDotEnv(configPath string) {
 func bindConfigDefaults(v *viper.Viper) {
 	v.SetDefault("language", "zh-CN")
 	v.SetDefault("server.port", 8083)
+	v.SetDefault("server.publicUrl", "")
+	v.SetDefault("server.publicUrl", "")
 	v.SetDefault("server.companyName", "")
 	v.SetDefault("server.companyLogoUrl", "")
+	v.SetDefault("server.companyFaviconUrl", "")
+	v.SetDefault("server.companyFaviconUrl", "")
 	v.SetDefault("server.cors.allowedOrigins", []string{})
 	v.SetDefault("server.trustedProxies", []string{})
 	v.SetDefault("server.trustedPlatform", "")
@@ -431,11 +478,29 @@ func bindConfigDefaults(v *viper.Viper) {
 	v.SetDefault("vectorDB.type", "qdrant")
 	v.SetDefault("vectorDB.qdrant.host", "127.0.0.1")
 	v.SetDefault("vectorDB.qdrant.grpcPort", 6334)
+	v.SetDefault("ai.provider", "openai")
+	v.SetDefault("ai.baseUrl", "https://api.openai.com/v1")
+	v.SetDefault("ai.apiKey", "")
+	v.SetDefault("ai.llmModel", "gpt-4o-mini")
+	v.SetDefault("ai.embeddingModel", "text-embedding-3-small")
+	v.SetDefault("ai.embeddingDimension", 1536)
+	v.SetDefault("ai.timeoutMs", 30000)
+	v.SetDefault("ai.maxRetryCount", 1)
 	v.SetDefault("mcp.enabled", true)
 	v.SetDefault("discord.clientId", "")
 	v.SetDefault("discord.clientSecret", "")
 	v.SetDefault("discord.botToken", "")
 	v.SetDefault("discord.publicKey", "")
+	v.SetDefault("email.provider", "smtp")
+	v.SetDefault("email.fromAddress", "")
+	v.SetDefault("email.fromName", "")
+	v.SetDefault("email.apiKey", "")
+	v.SetDefault("email.smtpHost", "")
+	v.SetDefault("email.smtpPort", 587)
+	v.SetDefault("email.smtpUser", "")
+	v.SetDefault("email.smtpPassword", "")
+	v.SetDefault("email.smtpUseTls", false)
+	v.SetDefault("email.inboundSecret", "")
 }
 
 func bindEnvironmentAliases(v *viper.Viper) {
@@ -443,8 +508,10 @@ func bindEnvironmentAliases(v *viper.Viper) {
 	// variables (PORT, DATABASE_URL, ...) cannot silently override the
 	// documented configuration.
 	_ = v.BindEnv("server.port", "AGENT_DESK_SERVER_PORT", "PORT", "SERVER_PORT")
+	_ = v.BindEnv("server.publicUrl", "AGENT_DESK_SERVER_PUBLICURL", "PUBLIC_URL", "SERVER_PUBLIC_URL", "BASE_URL")
 	_ = v.BindEnv("server.companyName", "AGENT_DESK_SERVER_COMPANYNAME", "COMPANY_NAME", "NEXT_PUBLIC_COMPANY_NAME", "BRAND_NAME", "BRAND_COMPANY_NAME")
 	_ = v.BindEnv("server.companyLogoUrl", "AGENT_DESK_SERVER_COMPANYLOGOURL", "COMPANY_LOGO_URL", "NEXT_PUBLIC_COMPANY_LOGO_URL", "BRAND_LOGO_URL")
+	_ = v.BindEnv("server.companyFaviconUrl", "AGENT_DESK_SERVER_COMPANYFAVICONURL", "COMPANY_FAVICON_URL", "NEXT_PUBLIC_COMPANY_FAVICON_URL", "FAVICON_URL")
 	_ = v.BindEnv("server.trustedProxies", "AGENT_DESK_SERVER_TRUSTEDPROXIES", "TRUSTED_PROXIES")
 	_ = v.BindEnv("server.trustedPlatform", "AGENT_DESK_SERVER_TRUSTEDPLATFORM", "TRUSTED_PLATFORM")
 	_ = v.BindEnv("server.rateLimit.enabled", "AGENT_DESK_SERVER_RATELIMIT_ENABLED", "RATE_LIMIT_ENABLED")
@@ -471,6 +538,16 @@ func bindEnvironmentAliases(v *viper.Viper) {
 	_ = v.BindEnv("discord.clientSecret", "AGENT_DESK_DISCORD_CLIENTSECRET", "DISCORD_CLIENT_SECRET")
 	_ = v.BindEnv("discord.botToken", "AGENT_DESK_DISCORD_BOTTOKEN", "DISCORD_BOT_TOKEN")
 	_ = v.BindEnv("discord.publicKey", "AGENT_DESK_DISCORD_PUBLICKEY", "DISCORD_PUBLIC_KEY")
+	_ = v.BindEnv("email.provider", "EMAIL_PROVIDER", "AGENT_DESK_EMAIL_PROVIDER")
+	_ = v.BindEnv("email.fromAddress", "EMAIL_FROM", "EMAIL_FROM_ADDRESS", "SUPPORT_EMAIL", "AGENT_DESK_EMAIL_FROMADDRESS")
+	_ = v.BindEnv("email.fromName", "EMAIL_FROM_NAME", "EMAIL_SENDER_NAME", "SUPPORT_SENDER_NAME", "AGENT_DESK_EMAIL_FROMNAME")
+	_ = v.BindEnv("email.apiKey", "EMAIL_API_KEY", "BREVO_API_KEY", "SENDGRID_API_KEY", "RESEND_API_KEY", "POSTMARK_API_KEY", "MAILGUN_API_KEY", "AGENT_DESK_EMAIL_APIKEY")
+	_ = v.BindEnv("email.smtpHost", "SMTP_HOST", "EMAIL_SMTP_HOST", "AGENT_DESK_EMAIL_SMTPHOST")
+	_ = v.BindEnv("email.smtpPort", "SMTP_PORT", "EMAIL_SMTP_PORT", "AGENT_DESK_EMAIL_SMTPPORT")
+	_ = v.BindEnv("email.smtpUser", "SMTP_USER", "EMAIL_SMTP_USER", "AGENT_DESK_EMAIL_SMTPUSER")
+	_ = v.BindEnv("email.smtpPassword", "SMTP_PASSWORD", "SMTP_PASS", "EMAIL_SMTP_PASSWORD", "AGENT_DESK_EMAIL_SMTPPASSWORD")
+	_ = v.BindEnv("email.smtpUseTls", "SMTP_USE_TLS", "SMTP_SSL", "AGENT_DESK_EMAIL_SMTPUSETLS")
+	_ = v.BindEnv("email.inboundSecret", "EMAIL_INBOUND_SECRET", "EMAIL_WEBHOOK_SECRET", "AGENT_DESK_EMAIL_INBOUNDSECRET")
 }
 
 func normalizeLoadedConfig(cfg *Config) {
@@ -481,5 +558,49 @@ func normalizeLoadedConfig(cfg *Config) {
 		cfg.DB.Type = "postgres"
 	} else if cfg.DB.Type == "sqlite" && strings.Contains(cfg.DB.DSN, "@tcp(") {
 		cfg.DB.Type = "mysql"
+	}
+
+	if cfg.MCP.Servers == nil {
+		cfg.MCP.Servers = make(map[string]MCPServerConfig)
+	}
+	if _, ok := cfg.MCP.Servers["system"]; !ok {
+		port := cfg.Server.Port
+		if port <= 0 {
+			port = 8083
+		}
+		cfg.MCP.Servers["system"] = MCPServerConfig{
+			Enabled:   true,
+			Endpoint:  fmt.Sprintf("http://127.0.0.1:%d/api/mcp", port),
+			TimeoutMS: 15000,
+		}
+	}
+
+	crmEndpoint := strings.TrimSpace(os.Getenv("MCP_CRM_ENDPOINT"))
+	if crmEndpoint == "" {
+		crmEndpoint = strings.TrimSpace(os.Getenv("CROVE_CRM_MCP_ENDPOINT"))
+	}
+	if crmEndpoint == "" {
+		crmEndpoint = strings.TrimSpace(os.Getenv("TWENTY_CRM_MCP_ENDPOINT"))
+	}
+	if crmEndpoint != "" {
+		apiKey := strings.TrimSpace(os.Getenv("MCP_CRM_API_KEY"))
+		if apiKey == "" {
+			apiKey = strings.TrimSpace(os.Getenv("CROVE_CRM_API_KEY"))
+		}
+		if apiKey == "" {
+			apiKey = strings.TrimSpace(os.Getenv("TWENTY_CRM_API_KEY"))
+		}
+		headers := map[string]string{}
+		if apiKey != "" {
+			headers["Authorization"] = "Bearer " + apiKey
+		}
+		crmServerConfig := MCPServerConfig{
+			Enabled:   true,
+			Endpoint:  crmEndpoint,
+			TimeoutMS: 15000,
+			Headers:   headers,
+		}
+		cfg.MCP.Servers["twenty_crm"] = crmServerConfig
+		cfg.MCP.Servers["crove_crm"] = crmServerConfig
 	}
 }

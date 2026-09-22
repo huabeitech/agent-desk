@@ -98,6 +98,11 @@ OIDC_CLIENT_ID=client-123
 OIDC_CLIENT_SECRET=secret-456
 OIDC_REDIRECT_URL=https://desk.example.com/api/auth/oidc_callback
 ORG_SYNC_SECRET=webhook-secret-789
+EMAIL_PROVIDER=brevo
+EMAIL_FROM=help@example.com
+EMAIL_FROM_NAME=Helpdesk Team
+BREVO_API_KEY=xkeysib-test-123
+EMAIL_INBOUND_SECRET=inbound-secret-456
 `)
 	if err := os.WriteFile(envPath, envContent, 0600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -154,6 +159,21 @@ ORG_SYNC_SECRET=webhook-secret-789
 	}
 	if cfg.Webhook.OrgSyncSecret != "webhook-secret-789" {
 		t.Fatalf("Webhook.OrgSyncSecret=%q", cfg.Webhook.OrgSyncSecret)
+	}
+	if cfg.Email.Provider != "brevo" {
+		t.Fatalf("Email.Provider=%q want brevo", cfg.Email.Provider)
+	}
+	if cfg.Email.FromAddress != "help@example.com" {
+		t.Fatalf("Email.FromAddress=%q want help@example.com", cfg.Email.FromAddress)
+	}
+	if cfg.Email.FromName != "Helpdesk Team" {
+		t.Fatalf("Email.FromName=%q want Helpdesk Team", cfg.Email.FromName)
+	}
+	if cfg.Email.APIKey != "xkeysib-test-123" {
+		t.Fatalf("Email.APIKey=%q want xkeysib-test-123", cfg.Email.APIKey)
+	}
+	if cfg.Email.InboundSecret != "inbound-secret-456" {
+		t.Fatalf("Email.InboundSecret=%q want inbound-secret-456", cfg.Email.InboundSecret)
 	}
 }
 

@@ -90,7 +90,7 @@ type AgentConversationsStore = {
   loadOlderMessages: () => Promise<void>
   syncLatestMessages: (conversationId: number) => Promise<void>
   markSelectedConversationRead: () => Promise<void>
-  sendMessage: (html: string) => Promise<AgentMessage | null>
+  sendMessage: (html: string, messageType?: "html" | "note") => Promise<AgentMessage | null>
   uploadImage: (file: File) => Promise<AgentAsset | null>
   sendAttachment: (file: File) => Promise<AgentMessage | null>
   recallMessage: (messageId: number) => Promise<AgentMessage | null>
@@ -470,7 +470,7 @@ export const useAgentConversationsStore = create<AgentConversationsStore>((set, 
     }
   },
 
-  sendMessage: async (html) => {
+  sendMessage: async (html, messageType = "html") => {
     const trimmedContent = html.trim()
     const { selectedConversationId, sending } = get()
     if (!selectedConversationId || !trimmedContent || sending) {
@@ -481,7 +481,7 @@ export const useAgentConversationsStore = create<AgentConversationsStore>((set, 
     try {
       const message = await sendAgentMessage({
         conversationId: selectedConversationId,
-        messageType: "html",
+        messageType: messageType,
         content: trimmedContent,
         clientMsgId: `agent_${generateUUID()}`,
       })
@@ -497,8 +497,9 @@ export const useAgentConversationsStore = create<AgentConversationsStore>((set, 
               conversationId: selectedConversationId,
               agentUnreadCount: 0,
               customerUnreadCount:
-                (current.conversations.find((item) => item.id === selectedConversationId)
-                  ?.customerUnreadCount ?? 0) + 1,
+                messageType === "note"
+                  ? (current.conversations.find((item) => item.id === selectedConversationId)?.customerUnreadCount ?? 0)
+                  : (current.conversations.find((item) => item.id === selectedConversationId)?.customerUnreadCount ?? 0) + 1,
               agentLastReadMessageId: message.id,
             }
           ),

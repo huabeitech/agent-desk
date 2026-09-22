@@ -82,6 +82,10 @@ func registerApiChannelRoutes(group *gin.RouterGroup) {
 func registerApiWebhookRoutes(group *gin.RouterGroup) {
 	group.POST("/org-sync", api.OrgSyncWebhook)
 	group.POST("/dos-org-sync", api.DOSOrgSyncWebhook)
+	group.POST("/crm-sync", api.OrgSyncWebhook)
+	group.POST("/dos-events", api.OrgSyncWebhook)
+	group.POST("/events", api.OrgSyncWebhook)
+	group.POST("/ecosystem", api.OrgSyncWebhook)
 }
 
 func registerApiCustomerRoutes(group *gin.RouterGroup, limits publicRateLimits) {
@@ -152,7 +156,12 @@ func registerDashboardUserRoutes(group *gin.RouterGroup) {
 
 func registerDashboardOrganizationRoutes(group *gin.RouterGroup) {
 	group.GET("/my_list", dashboard.OrganizationUserList)
+	group.POST("/create", dashboard.OrganizationPostCreate)
 	group.POST("/switch", dashboard.OrganizationSwitch)
+	group.GET("/members", dashboard.OrganizationGetMembers)
+	group.POST("/add_member", dashboard.OrganizationPostAddMember)
+	group.POST("/remove_member", dashboard.OrganizationPostRemoveMember)
+	group.POST("/update", dashboard.OrganizationPostUpdate)
 }
 
 func registerDashboardCompanyRoutes(group *gin.RouterGroup) {
@@ -489,6 +498,10 @@ func registerThirdTelegramRoutes(group *gin.RouterGroup) {
 func registerThirdZaloRoutes(group *gin.RouterGroup) {
 	group.POST("/webhook", third.ZaloPostWebhook)
 	group.POST("/webhook/:channel_id", third.ZaloPostWebhook)
+}
+func registerThirdEmailRoutes(group *gin.RouterGroup) {
+	group.POST("/webhook", third.EmailPostWebhook)
+	group.POST("/webhook/:channel_id", third.EmailPostWebhook)
 }
 
 func registerThirdDiscordRoutes(group *gin.RouterGroup) {

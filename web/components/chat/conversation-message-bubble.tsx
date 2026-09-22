@@ -11,6 +11,7 @@ export type ConversationMessageVariant =
   | "ai"
   | "system"
   | "recalled"
+  | "note"
 
 type ConversationMessageBubbleProps = {
   variant: ConversationMessageVariant
@@ -28,6 +29,8 @@ function getBubbleVariant(variant: ConversationMessageVariant) {
       return "tinted" as const
     case "agent":
       return "default" as const
+    case "note":
+      return "tinted" as const
     case "recalled":
       return "outline" as const
     default:
@@ -39,6 +42,8 @@ function getContentClassName(variant: ConversationMessageVariant) {
   switch (variant) {
     case "agent":
       return "bg-emerald-600 text-white"
+    case "note":
+      return "border border-amber-500/30 bg-amber-500/10 text-amber-950 dark:text-amber-200"
     case "system":
       return "border-dashed text-muted-foreground"
     case "recalled":

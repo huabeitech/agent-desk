@@ -77,15 +77,19 @@ export enum ExternalSource {
   Guest = "guest",
   WxWorkKF = "wxwork_kf",
   User = "user",
+  TwentyCRM = "twenty_crm",
   Telegram = "telegram",
   ZaloOA = "zalo_oa",
+  Email = "email",
 }
 export const ExternalSourceLabels: Record<ExternalSource, string> = {
   [ExternalSource.Guest]: "访客",
   [ExternalSource.WxWorkKF]: "企业微信客服",
   [ExternalSource.User]: "用户",
+  [ExternalSource.TwentyCRM]: "Twenty CRM",
   [ExternalSource.Telegram]: "Telegram",
   [ExternalSource.ZaloOA]: "Zalo OA",
+  [ExternalSource.Email]: "Email",
 }
 
 export enum Gender {
@@ -180,12 +184,14 @@ export enum IMMessageType {
   Image = "image",
   Attachment = "attachment",
   HTML = "html",
+  Note = "note",
 }
 export const IMMessageTypeLabels: Record<IMMessageType, string> = {
   [IMMessageType.Text]: "文本",
   [IMMessageType.Image]: "图片",
   [IMMessageType.Attachment]: "附件",
   [IMMessageType.HTML]: "富文本",
+  [IMMessageType.Note]: "便签",
 }
 
 export enum IMParticipantType {
@@ -206,12 +212,14 @@ export enum IMSenderType {
   Customer = "customer",
   AI = "ai",
   System = "system",
+  Note = "note",
 }
 export const IMSenderTypeLabels: Record<IMSenderType, string> = {
   [IMSenderType.Agent]: "客服",
   [IMSenderType.Customer]: "客户",
   [IMSenderType.AI]: "AI",
   [IMSenderType.System]: "系统",
+  [IMSenderType.Note]: "便签",
 }
 
 export enum KnowledgeAnswerMode {

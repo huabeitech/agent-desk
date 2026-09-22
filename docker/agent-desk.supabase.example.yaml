@@ -1,0 +1,112 @@
+language: en-US
+
+server:
+  companyName: Crove
+  companyLogoUrl: "/images/logo.svg"
+  port: 8083
+  cors:
+    allowedOrigins:
+      - https://desk.crove.com
+      - https://crm.crove.com
+      - http://127.0.0.1:8083
+      - http://localhost:8083
+
+db:
+  type: postgres
+  # Supabase Session Pooler (port 5432) with schema desk
+  dsn: "host=aws-1-ap-southeast-1.pooler.supabase.com user=postgres.your-project-ref password=your-db-password dbname=postgres port=5432 sslmode=require search_path=desk"
+  maxIdleConns: 5
+  maxOpenConns: 20
+  connMaxIdleTimeSeconds: 300
+  connMaxLifetimeSeconds: 1800
+
+logger:
+  level: info
+  format: text
+  addSource: false
+
+auth:
+  passwordLoginEnabled: false
+  tokenTTLHours: 12
+  maxFailedAttempts: 5
+  credentialLockMinute: 15
+
+customerSession:
+  secret: crove-desk-session-secret-a9f837bd51c44820b721865e90d238cb
+  ttlMinutes: 120
+  refreshThresholdMinutes: 30
+
+storage:
+  default: local
+  maxUploadSizeMB: 20
+  local:
+    root: /app/data/storage
+    baseUrl: /storage
+  oss:
+    endpoint: ""
+    bucket: ""
+    accessKeyId: ""
+    accessKeySecret: ""
+    baseUrl: ""
+    private: false
+    signedUrlExpireSeconds: 600
+
+vectorDB:
+  type: qdrant
+  qdrant:
+    host: desk-qdrant
+    grpcPort: 6334
+    apiKey: ""
+    useTls: false
+
+ai:
+  provider: openai
+  baseUrl: https://api.dos.ai/v1
+  apiKey: your-ai-api-key
+  llmModel: dos-ai
+  embeddingModel: qwen3-embedding-4b
+  embeddingDimension: 2560
+  timeoutMs: 30000
+  maxRetryCount: 1
+
+mcp:
+  enabled: true
+  servers:
+    system:
+      enabled: true
+      endpoint: "http://127.0.0.1:8083/api/mcp"
+      timeoutMs: 15000
+      headers: {}
+    twenty_crm:
+      enabled: true
+      endpoint: "http://crm-server:3000/mcp"
+      timeoutMs: 15000
+      headers: {}
+    crove_crm:
+      enabled: true
+      endpoint: "http://crm-server:3000/mcp"
+      timeoutMs: 15000
+      headers: {}
+
+oidc:
+  enabled: true
+  issuer: "https://your-supabase-ref.supabase.co/auth/v1"
+  clientId: "your-oidc-client-id"
+  clientSecret: "your-oidc-client-secret"
+  redirectUrl: "https://desk.crove.com/api/auth/oidc_callback"
+  stateSecret: "crove-desk-oidc-state-secret-placeholder"
+  scopes:
+    - openid
+    - profile
+    - email
+
+webhook:
+  orgSyncSecret: "your-org-sync-webhook-secret"
+  outboundUrl: "https://api.dos.me/internal/events/publish"
+
+email:
+  provider: brevo
+  fromAddress: "help@crove.com"
+  fromName: "Crove Desk Support"
+  apiKey: "your-brevo-or-esp-api-key"
+  inboundSecret: "your-email-inbound-webhook-secret"

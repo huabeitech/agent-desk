@@ -461,6 +461,10 @@ func setupAuthServiceTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&models.Organization{},
 		&models.OrganizationMember{},
+		&models.Company{},
+		&models.Customer{},
+		&models.CustomerIdentity{},
+		&models.CustomerContact{},
 		&models.User{},
 		&models.UserIdentity{},
 		&models.Role{},

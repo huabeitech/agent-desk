@@ -359,10 +359,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    font-family: var(--font-inter), var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
   body {
     @apply bg-background text-foreground;
-  }
-  html {
-    @apply font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }

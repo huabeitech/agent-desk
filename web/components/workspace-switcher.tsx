@@ -1,11 +1,21 @@
 "use client"
 
-import { Building2Icon, CheckIcon, ChevronsUpDownIcon, LayoutDashboardIcon, WrenchIcon } from "lucide-react"
+import {
+  Building2Icon,
+  CheckIcon,
+  ChevronsUpDownIcon,
+  LayoutDashboardIcon,
+  PlusIcon,
+  SettingsIcon,
+  WrenchIcon,
+} from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState, type ReactElement } from "react"
 import { toast } from "sonner"
 
+import { CreateOrganizationDialog, ManageOrganizationDialog } from "@/components/organization-dialogs"
 import { useI18n } from "@/i18n/provider"
+import { fetchPublicConfig, type PublicConfig } from "@/lib/api/config"
 import { listMyOrganizations, switchOrganization, type OrganizationItem } from "@/lib/api/organization"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -60,15 +70,27 @@ export function WorkspaceSwitcher({
   const [orgs, setOrgs] = useState<OrganizationItem[]>([])
   const [activeOrgId, setActiveOrgId] = useState<number | null>(null)
   const [switching, setSwitching] = useState(false)
+  const [publicConfig, setPublicConfig] = useState<PublicConfig | null>(null)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [manageDialogOpen, setManageDialogOpen] = useState(false)
 
-  useEffect(() => {
-    let mounted = true
+  const loadOrgs = () => {
     listMyOrganizations()
       .then((res) => {
-        if (mounted && res?.organizations) {
+        if (res?.organizations) {
           setOrgs(res.organizations)
           setActiveOrgId(res.currentOrganizationId || res.organizations[0]?.id || null)
         }
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    let mounted = true
+    loadOrgs()
+    fetchPublicConfig()
+      .then((cfg) => {
+        if (mounted) setPublicConfig(cfg)
       })
       .catch(() => {})
     return () => {
@@ -80,6 +102,9 @@ export function WorkspaceSwitcher({
     workspaceOptions.find((item) => item.key === currentWorkspace) ?? workspaceOptions[0]
   const currentOrg = orgs.find((o) => o.id === activeOrgId) || orgs[0]
 
+  const brandName = publicConfig?.companyName || t("app.brand")
+  const brandLogo = publicConfig?.companyLogoUrl || "/images/logo.svg"
+
   const handleSwitchOrg = async (orgId: number) => {
     if (orgId === activeOrgId || switching) return
     setSwitching(true)
@@ -87,7 +112,7 @@ export function WorkspaceSwitcher({
       await switchOrganization(orgId)
       setActiveOrgId(orgId)
       toast.success("Switched organization successfully")
-      window.location.reload()
+      window.location.href = "/dashboard"
     } catch {
       toast.error("Failed to switch organization")
     } finally {
@@ -113,28 +138,28 @@ export function WorkspaceSwitcher({
     variant === "rail" ? (
       <>
         <img
-          src="/images/logo.svg"
-          alt={t("app.brand")}
+          src={brandLogo}
+          alt={brandName}
           width="32"
           height="32"
           className="size-7 shrink-0 object-contain"
         />
         <span className="sr-only">
-          {currentOrg?.name || t("app.brand")} - {t(currentOption.labelKey)}
+          {currentOrg?.name || brandName} - {t(currentOption.labelKey)}
         </span>
         <ChevronsUpDownIcon className={switchIndicatorClassName} />
       </>
     ) : (
       <>
         <img
-          src="/images/logo.svg"
-          alt={t("app.brand")}
+          src={brandLogo}
+          alt={brandName}
           width="32"
           height="32"
           className="size-7 shrink-0 object-contain"
         />
         <div className="grid min-w-0 flex-1 text-left leading-tight">
-          <span className="truncate text-sm font-semibold">{currentOrg?.name || t("app.brand")}</span>
+          <span className="truncate text-sm font-semibold">{currentOrg?.name || brandName}</span>
           <span className="truncate text-xs text-muted-foreground">
             {t(currentOption.labelKey)} {currentOrg?.role ? `• ${currentOrg.role}` : ""}
           </span>
@@ -149,67 +174,123 @@ export function WorkspaceSwitcher({
     )
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          trigger ?? <Button variant="ghost" className={triggerClassName} />
-        }
-      >
-        {triggerContent}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        side={variant === "sidebar" || variant === "rail" ? "right" : "bottom"}
-        sideOffset={8}
-        className="w-64 min-w-64"
-      >
-        {orgs.length > 0 ? (
-          <>
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-                <Building2Icon className="size-3.5" />
-                Organizations / Workspaces
-              </DropdownMenuLabel>
-              {orgs.map((org) => {
-                const isActive = org.id === activeOrgId
-                return (
-                  <DropdownMenuItem
-                    key={org.id}
-                    className="cursor-pointer gap-2"
-                    onClick={() => handleSwitchOrg(org.id)}
-                  >
-                    <div className="flex flex-1 flex-col min-w-0">
-                      <span className="truncate font-medium text-sm">{org.name}</span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {org.role || "Member"} {org.plan ? `• ${org.plan}` : ""}
-                      </span>
-                    </div>
-                    {isActive ? <CheckIcon className="size-4 text-primary shrink-0" /> : null}
-                  </DropdownMenuItem>
-                )
-              })}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            trigger ?? <Button variant="ghost" className={triggerClassName} />
+          }
+        >
+          {triggerContent}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          side={variant === "sidebar" || variant === "rail" ? "right" : "bottom"}
+          sideOffset={8}
+          className="w-64 min-w-64"
+        >
+          {orgs.length > 0 ? (
+            <>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="flex items-center justify-between text-xs text-muted-foreground font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <Building2Icon className="size-3.5" />
+                    Organizations / Workspaces
+                  </span>
+                  {currentOrg ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setManageDialogOpen(true)
+                      }}
+                      className="hover:text-foreground inline-flex items-center gap-1 p-0.5 rounded"
+                      title="Manage organization members"
+                    >
+                      <SettingsIcon className="size-3.5" />
+                    </button>
+                  ) : null}
+                </DropdownMenuLabel>
+                {orgs.map((org) => {
+                  const isActive = org.id === activeOrgId
+                  return (
+                    <DropdownMenuItem
+                      key={org.id}
+                      className="cursor-pointer gap-2"
+                      onClick={() => handleSwitchOrg(org.id)}
+                    >
+                      <div className="flex flex-1 flex-col min-w-0">
+                        <span className="truncate font-medium text-sm">{org.name}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {org.role || "Member"} {org.plan ? `• ${org.plan}` : ""}
+                        </span>
+                      </div>
+                      {isActive ? <CheckIcon className="size-4 text-primary shrink-0" /> : null}
+                    </DropdownMenuItem>
+                  )
+                })}
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-primary font-medium mt-1"
+                  onClick={() => setCreateDialogOpen(true)}
+                >
+                  <PlusIcon className="size-4" />
+                  <span>Create Organization</span>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+            </>
+          ) : (
+            <>
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-primary font-medium"
+                  onClick={() => setCreateDialogOpen(true)}
+                >
+                  <PlusIcon className="size-4" />
+                  <span>Create Organization</span>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+            </>
+          )}
 
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>{t("workspace.switchWorkspace")}</DropdownMenuLabel>
-          {workspaceOptions.map((item) => (
-            <DropdownMenuItem
-              key={item.key}
-              render={<Link href={item.href} />}
-              className="cursor-pointer gap-2"
-            >
-              <item.icon className="size-4 text-muted-foreground" />
-              <span className="flex-1 truncate">{t(item.labelKey)}</span>
-              {item.key === currentWorkspace ? (
-                <CheckIcon className="size-4 text-primary" />
-              ) : null}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>{t("workspace.switchWorkspace")}</DropdownMenuLabel>
+            {workspaceOptions.map((item) => (
+              <DropdownMenuItem
+                key={item.key}
+                render={<Link href={item.href} />}
+                className="cursor-pointer gap-2"
+              >
+                <item.icon className="size-4 text-muted-foreground" />
+                <span className="flex-1 truncate">{t(item.labelKey)}</span>
+                {item.key === currentWorkspace ? (
+                  <CheckIcon className="size-4 text-primary" />
+                ) : null}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <CreateOrganizationDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onCreated={(newOrg) => {
+          loadOrgs()
+          setActiveOrgId(newOrg.id)
+          window.location.href = "/dashboard"
+        }}
+      />
+
+      <ManageOrganizationDialog
+        open={manageDialogOpen}
+        onOpenChange={setManageDialogOpen}
+        organization={currentOrg || null}
+        onUpdated={() => {
+          loadOrgs()
+        }}
+      />
+    </>
   )
 }

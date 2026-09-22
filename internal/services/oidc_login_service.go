@@ -360,7 +360,7 @@ func (s *oidcLoginService) syncOIDCUserOrganizations(tx *gorm.DB, user *models.U
 				})
 			}
 
-			if activeOrgID == 0 {
+			if activeOrgID == 0 || (profile.ActiveOrgID != "" && (profile.ActiveOrgID == orgCode || profile.ActiveOrgID == orgClaim.Slug)) {
 				activeOrgID = org.ID
 			}
 		}
