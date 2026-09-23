@@ -26,6 +26,7 @@ type Config struct {
 	CustomerSession CustomerSessionConfig `yaml:"customerSession"`
 	Webhook         WebhookConfig         `yaml:"webhook"`
 	Discord         DiscordConfig         `yaml:"discord"`
+	Slack           SlackConfig           `yaml:"slack"`
 }
 
 func (c Config) LanguageOrDefault() string {
@@ -346,6 +347,37 @@ type DiscordConfig struct {
 	PublicKey    string `yaml:"publicKey"`
 }
 
+// SlackConfig holds deployment-wide Slack app credentials. A channel may carry
+// its own bot token and signing secret, which take precedence; these are the
+// fallback for a single shared Slack app.
+type SlackConfig struct {
+	ClientID      string `yaml:"clientId"`
+	ClientSecret  string `yaml:"clientSecret"`
+	BotToken      string `yaml:"botToken"`
+	SigningSecret string `yaml:"signingSecret"`
+}
+
+// SlackApp resolves the Slack app credentials for one channel. A channel value
+// wins over the deployment-wide one, so a single deployment can serve several
+// workspaces while still having a default app.
+func (c Config) SlackApp(channelBotToken, channelSigningSecret string) SlackConfig {
+	return SlackConfig{
+		ClientID:      strings.TrimSpace(c.Slack.ClientID),
+		ClientSecret:  strings.TrimSpace(c.Slack.ClientSecret),
+		BotToken:      firstNonBlank(channelBotToken, c.Slack.BotToken),
+		SigningSecret: firstNonBlank(channelSigningSecret, c.Slack.SigningSecret),
+	}
+}
+
+func firstNonBlank(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
 func Load(path string) (*Config, error) {
 	loadDotEnv(path)
 
@@ -436,6 +468,10 @@ func bindConfigDefaults(v *viper.Viper) {
 	v.SetDefault("discord.clientSecret", "")
 	v.SetDefault("discord.botToken", "")
 	v.SetDefault("discord.publicKey", "")
+	v.SetDefault("slack.clientId", "")
+	v.SetDefault("slack.clientSecret", "")
+	v.SetDefault("slack.botToken", "")
+	v.SetDefault("slack.signingSecret", "")
 }
 
 func bindEnvironmentAliases(v *viper.Viper) {
@@ -471,6 +507,10 @@ func bindEnvironmentAliases(v *viper.Viper) {
 	_ = v.BindEnv("discord.clientSecret", "AGENT_DESK_DISCORD_CLIENTSECRET", "DISCORD_CLIENT_SECRET")
 	_ = v.BindEnv("discord.botToken", "AGENT_DESK_DISCORD_BOTTOKEN", "DISCORD_BOT_TOKEN")
 	_ = v.BindEnv("discord.publicKey", "AGENT_DESK_DISCORD_PUBLICKEY", "DISCORD_PUBLIC_KEY")
+	_ = v.BindEnv("slack.clientId", "AGENT_DESK_SLACK_CLIENTID", "SLACK_CLIENT_ID")
+	_ = v.BindEnv("slack.clientSecret", "AGENT_DESK_SLACK_CLIENTSECRET", "SLACK_CLIENT_SECRET")
+	_ = v.BindEnv("slack.botToken", "AGENT_DESK_SLACK_BOTTOKEN", "SLACK_BOT_TOKEN")
+	_ = v.BindEnv("slack.signingSecret", "AGENT_DESK_SLACK_SIGNINGSECRET", "SLACK_SIGNING_SECRET")
 }
 
 func normalizeLoadedConfig(cfg *Config) {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/config"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/repositories"
@@ -345,5 +346,23 @@ func TestSlackInboundAnswersURLVerificationChallenge(t *testing.T) {
 	}
 	if challenge == nil || *challenge != "challenge_token_abc" {
 		t.Fatalf("challenge = %v, want challenge_token_abc", challenge)
+	}
+}
+
+// A channel without its own signing secret inherits the deployment-wide one,
+// so a single shared Slack app can serve every channel the desk supports.
+func TestSlackInboundFallsBackToDeploymentSigningSecret(t *testing.T) {
+	db := setupSlackTestDB(t)
+	channel := seedSlackChannel(t, db, "")
+	config.SetCurrent(&config.Config{Slack: config.SlackConfig{SigningSecret: slackTestSigningSecret}})
+	defer config.SetCurrent(nil)
+
+	payload := slackEventPayload("1725260000.000300")
+	timestamp, signature := signSlackPayload(t, slackTestSigningSecret, payload)
+	if _, err := SlackInboundService.HandleWebhook(context.Background(), channel.ChannelID, timestamp, signature, payload); err != nil {
+		t.Fatalf("expected the deployment-secret-signed delivery to be accepted: %v", err)
+	}
+	if countSlackMessages(t, db, "1725260000.000300") != 1 {
+		t.Fatal("expected the delivery to be stored")
 	}
 }

@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"strings"
 	"time"
 
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/config"
 	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/repositories"
 	"agent-desk/internal/services/storage"
@@ -92,7 +92,14 @@ func (s *slackOutboundService) processOutbox(outboxID int64) error {
 		return s.markOutboxFailed(outbox, "slack channel not found or disabled")
 	}
 	cfg, err := ChannelService.ParseSlackChannelConfig(channel.ConfigJSON)
-	if err != nil || cfg == nil || strings.TrimSpace(cfg.BotToken) == "" {
+	if err != nil || cfg == nil {
+		return s.markOutboxFailed(outbox, "invalid slack channel config")
+	}
+
+	// The channel's own bot token wins; the deployment-wide SLACK_BOT_TOKEN is
+	// the fallback for a single shared Slack app.
+	botToken := config.ResolveSlack(cfg.BotToken, cfg.SigningSecret).BotToken
+	if botToken == "" {
 		return s.markOutboxFailed(outbox, "slack bot token not configured")
 	}
 
@@ -123,7 +130,7 @@ func (s *slackOutboundService) processOutbox(outboxID int64) error {
 		return s.markOutboxFailed(outbox, "unable to resolve target slack channel")
 	}
 
-	client := slack.NewClient(cfg.BotToken)
+	client := slack.NewClient(botToken)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
