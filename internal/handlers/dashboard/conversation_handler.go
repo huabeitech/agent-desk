@@ -82,8 +82,17 @@ func ConversationAnyConversations(ctx *gin.Context) {
 	keyword, _ := params.Get(ctx, "keyword")
 	paging := params.GetPaging(ctx)
 
+	isAdmin := false
+	for _, role := range operator.Roles {
+		if role == constants.RoleCodeSuperAdmin || role == constants.RoleCodeAdmin || role == constants.RoleCodeCsTeamLeader {
+			isAdmin = true
+			break
+		}
+	}
+
 	list, paging, err := services.ConversationService.ListConversations(
 		operator.UserID,
+		isAdmin,
 		request.AgentConversationFilter(strings.TrimSpace(filterValue)),
 		keyword,
 		paging,

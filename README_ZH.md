@@ -257,14 +257,20 @@ flowchart LR
 如果只需要构建应用镜像，可以自行准备 MySQL 和 Qdrant，并挂载配置文件：
 
 ```bash
-docker build -t mlogclub/agent-desk .
+docker build -t yekay/agent-desk:1.6.3.3 .
 docker run --rm -p 8083:8083 \
   -v $(pwd)/docker/agent-desk.yaml:/app/config/config.yaml:ro \
   -v agent-desk-data:/app/data \
-  mlogclub/agent-desk
+  yekay/agent-desk:1.6.3.3
 ```
 
 Compose 使用 [docker/agent-desk.yaml](docker/agent-desk.yaml) 作为容器内配置，应用会通过 Docker 内部服务名访问 `mysql` 和 `qdrant`。
+
+导出镜像：
+
+```bash
+docker save -o agent-desk.tar yekay/agent-desk:1.6.3.3
+```
 
 ## 开源定位
 

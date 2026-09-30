@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  batchBuildKnowledgeDocumentIndex,
   batchDeleteKnowledgeDocuments,
   batchMoveKnowledgeDocuments,
   buildKnowledgeDocumentIndex,
@@ -81,6 +82,23 @@ export type DocumentListActionState = {
 };
 
 type TFunction = (key: string, values?: Record<string, string | number>) => string;
+
+// 卡片整块绑定了 onClick 打开"查看"，点击内部的菜单触发器、复选框、菜单项时
+// 不能再冒泡触发查看，否则会出现"编辑"与"查看"两个窗口同时弹出。
+function isInteractiveClickTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  return Boolean(
+    target.closest(
+      '[data-slot="dropdown-menu-trigger"],' +
+        '[data-slot="context-menu-trigger"],' +
+        '[data-slot="checkbox"],' +
+        '[data-slot="dropdown-menu-item"],' +
+        '[data-slot="context-menu-item"]',
+    ),
+  );
+}
 
 function getStatusOptions(t: TFunction) {
   return [
@@ -153,6 +171,7 @@ export function DocumentList({ knowledgeBaseId, onActionStateChange }: DocumentL
   const confirm = useConfirm();
   const [saving, setSaving] = useState(false);
   const [moving, setMoving] = useState(false);
+  const [batchBuilding, setBatchBuilding] = useState(false);
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [moveTargetIds, setMoveTargetIds] = useState<number[]>([]);
@@ -303,11 +322,17 @@ export function DocumentList({ knowledgeBaseId, onActionStateChange }: DocumentL
   }, [onActionStateChange, loadData, openCreateDialog, viewMode, loading]);
 
   function openEditDialog(item: KnowledgeDocumentListItem) {
+    // 互斥：打开编辑前关闭查看，避免两个窗口同时存在
+    setDetailOpen(false);
+    setDetailItemId(null);
     setEditingItem(item);
     setDialogOpen(true);
   }
 
   function openDetailDialog(item: KnowledgeDocumentListItem) {
+    // 互斥：打开查看前关闭编辑
+    setDialogOpen(false);
+    setEditingItem(null);
     setDetailItemId(item.id);
     setDetailOpen(true);
   }
@@ -425,6 +450,23 @@ export function DocumentList({ knowledgeBaseId, onActionStateChange }: DocumentL
     }
   }
 
+  async function handleBatchBuildIndex() {
+    if (selectedIds.length === 0 || batchBuilding) {
+      return;
+    }
+    const ids = selectedIds;
+    setBatchBuilding(true);
+    try {
+      await batchBuildKnowledgeDocumentIndex(ids);
+      toast.success(t("knowledge.batchRebuilt", { count: ids.length }));
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("knowledge.batchRebuildFailed"));
+    } finally {
+      setBatchBuilding(false);
+    }
+  }
+
   if (!knowledgeBaseId) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
@@ -513,7 +555,12 @@ export function DocumentList({ knowledgeBaseId, onActionStateChange }: DocumentL
                         "bg-background p-3 transition-colors hover:bg-accent w-full cursor-pointer",
                         contextMenuDocumentId === item.id && "bg-accent text-accent-foreground",
                       )}
-                      onClick={() => openDetailDialog(item)}
+                      onClick={(event) => {
+                        if (isInteractiveClickTarget(event.target)) {
+                          return;
+                        }
+                        openDetailDialog(item);
+                      }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 flex-1 items-start gap-2">
@@ -621,7 +668,12 @@ export function DocumentList({ knowledgeBaseId, onActionStateChange }: DocumentL
                         "flex items-center gap-3 bg-background p-2 transition-colors hover:bg-accent w-full cursor-pointer",
                         contextMenuDocumentId === item.id && "bg-accent text-accent-foreground",
                       )}
-                      onClick={() => openDetailDialog(item)}
+                      onClick={(event) => {
+                        if (isInteractiveClickTarget(event.target)) {
+                          return;
+                        }
+                        openDetailDialog(item);
+                      }}
                     >
                       <SelectionCheckbox
                         checked={selectedIds.includes(item.id)}
@@ -733,7 +785,7 @@ export function DocumentList({ knowledgeBaseId, onActionStateChange }: DocumentL
                   size="sm"
                   className="h-7"
                   onClick={() => openMoveDialog(selectedIds)}
-                  disabled={saving || moving}
+                  disabled={saving || moving || batchBuilding}
                 >
                   <FolderInputIcon className="size-3.5" />
                   {t("knowledge.move")}
@@ -742,9 +794,20 @@ export function DocumentList({ knowledgeBaseId, onActionStateChange }: DocumentL
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="h-7"
+                  onClick={() => void handleBatchBuildIndex()}
+                  disabled={saving || moving || batchBuilding}
+                >
+                  <WrenchIcon className={cn("size-3.5", batchBuilding && "animate-spin")} />
+                  {batchBuilding ? t("knowledge.running") : t("knowledge.batchRebuildIndex")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   className="h-7 text-destructive hover:text-destructive"
                   onClick={() => void handleBatchDelete()}
-                  disabled={saving || moving}
+                  disabled={saving || moving || batchBuilding}
                 >
                   <Trash2Icon className="size-3.5" />
                   {t("knowledge.delete")}
@@ -755,7 +818,7 @@ export function DocumentList({ knowledgeBaseId, onActionStateChange }: DocumentL
                   size="icon"
                   className="size-7"
                   onClick={() => setSelectedIds([])}
-                  disabled={saving || moving}
+                  disabled={saving || moving || batchBuilding}
                   aria-label={t("knowledge.clearSelection")}
                 >
                   <XIcon className="size-3.5" />

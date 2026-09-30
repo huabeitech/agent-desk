@@ -188,7 +188,8 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
         return
       }
 
-      if (event.type === "message.created") {
+      // message.updated 为 AI 占位回复被正式回复替换，按 ID 覆盖合并且不重复提醒
+      if (event.type === "message.created" || event.type === "message.updated") {
         const message = normalizeRealtimeMessage<ImMessage>(payload)
         if (!message) {
           void get().syncLatestMessages()
@@ -199,6 +200,7 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
           conversation: patchConversationWithMessage(state.conversation, message),
         }))
         if (
+          event.type === "message.created" &&
           message.senderType !== "customer" &&
           typeof document !== "undefined" &&
           document.visibilityState !== "visible"

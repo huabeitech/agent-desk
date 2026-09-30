@@ -246,6 +246,7 @@ const (
 	IMRealtimeEventUnsubscribed            = "unsubscribed"
 	IMRealtimeEventResyncRequired          = "resyncRequired"
 	IMRealtimeEventMessageCreated          = "message.created"
+	IMRealtimeEventMessageUpdated          = "message.updated"
 	IMRealtimeEventMessageRecalled         = "message.recalled"
 	IMRealtimeEventConversationCreated     = "conversation.created"
 	IMRealtimeEventConversationUpdated     = "conversation.updated"

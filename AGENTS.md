@@ -1,275 +1,275 @@
 # AGENTS.md
 
-This file defines the mandatory working agreement for AI agents in this repository. It is intentionally based on the current codebase rather than historical conventions.
+本文件定义了本仓库中 AI 智能体必须遵守的工作约定。它刻意以当前代码库的实际情况为准，而非历史惯例。
 
-## 1. Scope and Priorities
+## 1. 适用范围与优先级
 
-- These rules apply to the repository root and every subdirectory.
-- Explicit user instructions take precedence over this file. Mention any deliberate deviation in the final summary.
-- Inspect the relevant implementation before editing. Reuse current helpers, component APIs, generated-code workflows, and neighboring patterns instead of relying on memory.
-- Keep changes narrowly scoped. Preserve unrelated and user-owned worktree changes, including staged changes.
-- A review, investigation, or diagnosis request is read-only unless the user also asks for implementation.
+- 本规则适用于仓库根目录及所有子目录。
+- 用户的明确指令优先于本文件。如有刻意偏离，须在最终总结中说明。
+- 修改前先查看相关实现。复用现有的辅助函数、组件 API、代码生成工作流和邻近代码的模式，不要依赖记忆行事。
+- 保持改动范围聚焦。保留与本次任务无关的、用户自有的工作区改动，包括已暂存的改动。
+- 审查、调研或诊断类请求默认为只读，除非用户同时要求实现。
 
-## 2. Current Architecture
+## 2. 当前架构
 
-The repository contains three application areas:
+仓库包含三个应用区域：
 
-- Go server: `cmd/server` and `internal/*`
-- Next.js application: `web/*`
-- Embedded workflow editor: `flowgram-editor/*`, built into `web/public/flowgram-editor`
+- Go 服务端：`cmd/server` 和 `internal/*`
+- Next.js 应用：`web/*`
+- 内嵌的工作流编辑器：`flowgram-editor/*`，构建产物位于 `web/public/flowgram-editor`
 
-The main stack is:
+主要技术栈：
 
-- Go 1.26, Gin, GORM, `github.com/mlogclub/simple`
-- SQLite and MySQL
-- Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, shadcn/Base UI
-- `pnpm` for both frontend projects
-- Optional LanceDB builds through CGO; Qdrant is also supported by the application
+- Go 1.26、Gin、GORM、`github.com/mlogclub/simple`
+- SQLite 和 MySQL
+- Next.js 16 App Router、React 19、TypeScript、Tailwind CSS、shadcn/Base UI
+- 两个前端项目均使用 `pnpm`
+- 可选通过 CGO 构建 LanceDB 支持；应用同时支持 Qdrant
 
-Important entry points:
+重要入口：
 
-- Server assembly and middleware: `internal/bootstrap/server.go`
-- Explicit API routes: `internal/bootstrap/routes.go`
-- Model registration: `internal/models/models.go`
-- Schema/data migration startup: `internal/bootstrap/migration.go`
-- CRUD generator: `cmd/generator/generator.go`
-- Frontend enum generator: `cmd/enums/generator.go`
-- Frontend API client: `web/lib/api/client.ts`
-- Frontend i18n: `web/i18n/*` and `web/messages/*`
-- Dashboard shared components: `web/components/dashboard/*`
-- Project commands: `Taskfile.yml`
+- 服务装配与中间件：`internal/bootstrap/server.go`
+- 显式 API 路由：`internal/bootstrap/routes.go`
+- 模型注册：`internal/models/models.go`
+- 启动时结构/数据迁移：`internal/bootstrap/migration.go`
+- CRUD 生成器：`cmd/generator/generator.go`
+- 前端枚举生成器：`cmd/enums/generator.go`
+- 前端 API 客户端：`web/lib/api/client.ts`
+- 前端国际化：`web/i18n/*` 和 `web/messages/*`
+- 控制台共享组件：`web/components/dashboard/*`
+- 项目命令：`Taskfile.yml`
 
-## 3. General Change Rules
+## 3. 通用改动规则
 
-- Read the actual type, function, or component signature before using it.
-- Prefer the highest-level existing abstraction that fits the requirement. Do not duplicate query state, pagination, auth refresh, localization, or dashboard CRUD behavior.
-- Do not edit generated artifacts by hand. Change their source and run the corresponding generator/build command.
-- Do not add a second implementation style when the repository already has a shared path for the same concern.
-- Use `log/slog` for new Go logging and structured key-value fields for relevant context.
-- New Go code uses `any`, not `interface{}`. Existing generated or legacy code does not need unrelated cleanup.
-- Secrets, tokens, credentials, and private customer data must never be committed or printed in logs/tests.
+- 使用某个类型、函数或组件前，先阅读其真实签名。
+- 优先使用满足需求的最高层级现有抽象。不要重复实现查询状态、分页、鉴权刷新、本地化或控制台 CRUD 行为。
+- 不要手工编辑生成产物。应修改其源头并运行对应的生成器/构建命令。
+- 当仓库对同一关注点已有共享实现路径时，不要引入第二种实现风格。
+- 新的 Go 日志使用 `log/slog`，并以结构化键值字段记录相关上下文。
+- 新 Go 代码使用 `any`，不使用 `interface{}`。已有的生成代码或遗留代码无需做无关清理。
+- 密钥、令牌、凭据及客户隐私数据绝不能提交到仓库，也不能打印到日志/测试中。
 
-## 4. Go Backend
+## 4. Go 后端
 
-### 4.1 Layer Ownership
+### 4.1 分层职责
 
-The normal dependency and data flow is:
+正常的依赖与数据流方向为：
 
-`models -> repositories -> services -> handlers -> builders/response DTOs`
+`models -> repositories -> services -> handlers -> builders/响应 DTO`
 
-- `internal/models`: entity fields, GORM mappings, associations, and schema metadata only.
-- `internal/repositories`: GORM/SQL access, conditions, ordering, pagination, locks, and persistence details.
-- `internal/services`: business validation, state changes, authorization-independent domain rules, aggregation, transactions, and event orchestration.
-- `internal/handlers/{api,dashboard,third}`: HTTP parameter parsing, authentication/permission checks, service calls, and response writing.
-- `internal/builders`: pure model/aggregate-to-response mapping. Builders must not query the database.
-- `internal/pkg/dto/request` and `internal/pkg/dto/response`: external request/response contracts.
+- `internal/models`：仅包含实体字段、GORM 映射、关联关系和 schema 元数据。
+- `internal/repositories`：GORM/SQL 访问、条件、排序、分页、锁及持久化细节。
+- `internal/services`：业务校验、状态变更、与授权无关的领域规则、聚合、事务及事件编排。
+- `internal/handlers/{api,dashboard,third}`：HTTP 参数解析、认证/权限检查、调用服务、写入响应。
+- `internal/builders`：纯粹的模型/聚合到响应的映射。Builder 不得查询数据库。
+- `internal/pkg/dto/request` 和 `internal/pkg/dto/response`：对外请求/响应契约。
 
-Mandatory boundaries:
+强制边界：
 
-- Handlers must not call repositories or issue GORM queries directly.
-- Models and repositories must not contain HTTP, permission, or cross-resource workflow logic.
-- GORM models must not be returned directly from an API. Map them to response DTOs/builders.
-- A service may return models internally, but public response shape remains owned by builders/DTOs.
-- Put reusable SQL in repositories. A genuinely one-off aggregate query may stay near its domain service only when extraction would make ownership less clear.
+- Handler 不得直接调用 repository 或发起 GORM 查询。
+- Model 和 repository 不得包含 HTTP、权限或跨资源工作流逻辑。
+- GORM model 不得直接从 API 返回。必须映射为响应 DTO/builder。
+- Service 内部可以返回 model，但对外响应结构仍由 builder/DTO 负责。
+- 可复用的 SQL 放在 repository 中。只有在抽取出来反而会使职责归属更不清晰时，真正一次性的聚合查询才可以留在其领域 service 附近。
 
-### 4.2 Database and Transactions
+### 4.2 数据库与事务
 
-- Repository methods that participate in transactions accept `db *gorm.DB`; call them with `sqls.DB()` outside a transaction and `ctx.Tx` inside one.
-- Services own transaction boundaries through `sqls.WithTransaction`.
-- Use a transaction for atomic multi-write workflows and consistency-sensitive read-modify-write operations.
-- Do not add a transaction around a single independent SQL write.
-- Every database operation inside a transaction must use the same `ctx.Tx`; never escape to `sqls.DB()` mid-transaction.
-- Use `sqls.Cnd`/`sqls.NewCnd()` and repository methods for ordinary filtering and pagination.
-- Preserve SQLite and MySQL compatibility. Avoid dialect-specific SQL unless both dialects are explicitly implemented and tested.
-- Use portable column types and `int64` primary/foreign identifiers. Keep time handling compatible with MySQL `parseTime=True`.
+- 参与事务的 repository 方法接收 `db *gorm.DB`；事务外用 `sqls.DB()` 调用，事务内用 `ctx.Tx` 调用。
+- Service 通过 `sqls.WithTransaction` 拥有事务边界。
+- 原子性的多次写入工作流和对一致性敏感的读-改-写操作必须使用事务。
+- 不要为单个独立的 SQL 写操作添加事务。
+- 事务内的每个数据库操作都必须使用同一个 `ctx.Tx`；绝不能在事务中途逃逸到 `sqls.DB()`。
+- 普通的过滤和分页使用 `sqls.Cnd`/`sqls.NewCnd()` 及 repository 方法。
+- 保持 SQLite 和 MySQL 兼容。避免方言专属 SQL，除非两种方言都已显式实现并测试。
+- 使用可移植的列类型和 `int64` 主键/外键标识。时间处理需兼容 MySQL 的 `parseTime=True`。
 
-### 4.3 Models, Generation, and Migrations
+### 4.3 模型、代码生成与迁移
 
-- Register persistent models in `internal/models/models.go` so startup `AutoMigrate(models.Models...)` includes them.
-- New tables, columns, indexes, and compatible constraints are normally applied by GORM `AutoMigrate` in `internal/bootstrap/migration.go`.
-- Use `internal/migration/*` only for versioned, idempotent data migration/backfill/repair work. Its version must increase monotonically.
-- When a model uses the standard generated repository/service surface, register it in `cmd/generator/generator.go` and run `task generator`.
-- Treat generator output as mechanical infrastructure. Put business-specific methods in handwritten files and do not manually patch generated CRUD output.
-- Backend/frontend shared enums are defined in `internal/pkg/enums`, annotated using the existing enum pattern, and generated with `task enums` into `web/lib/generated/enums.ts`.
-- Never create a handwritten frontend duplicate of a generated backend enum.
+- 持久化模型须注册到 `internal/models/models.go`，以便启动时的 `AutoMigrate(models.Models...)` 包含它们。
+- 新表、新列、索引及兼容性约束通常由 `internal/bootstrap/migration.go` 中的 GORM `AutoMigrate` 应用。
+- `internal/migration/*` 仅用于有版本的、幂等的数据迁移/回填/修复工作。其版本号必须单调递增。
+- 当模型使用标准的生成 repository/service 接口时，将其注册到 `cmd/generator/generator.go` 并运行 `task generator`。
+- 把生成器输出视为机械基础设施。业务专属方法放在手写文件中，不要手工修补生成的 CRUD 代码。
+- 后端/前端共享枚举定义在 `internal/pkg/enums`，按现有枚举模式添加注解，通过 `task enums` 生成到 `web/lib/generated/enums.ts`。
+- 绝不要在前端手写一份与已生成后端枚举重复的枚举。
 
-### 4.4 HTTP APIs
+### 4.4 HTTP API
 
-- All routes are explicit in `internal/bootstrap/routes.go`; handler names do not create endpoints.
-- Public/product APIs live under `/api/*`, authenticated management APIs under `/api/dashboard/*`, callbacks under `/api/third/*`, and WebSockets under `/api/ws/*`.
-- Add a resource-specific `register...Routes` function or extend the existing one, then mount it from `addRouter` under the correct group.
-- Follow the existing resource contract: detail commonly uses `GET /:id`, list uses `/list`, writes use explicit POST actions such as `/create`, `/update`, `/delete`, and domain actions retain their established snake_case path names.
-- Do not introduce `/api/v1`, automatic routing assumptions, or unnecessary deeply nested resource paths.
-- Handler names mirror the registered method and path, for example `XxxGetBy`, `XxxAnyList`, and `XxxPostCreate`.
-- Parse JSON/form/query/path values with `internal/pkg/httpx/params` and `internal/pkg/httpx` helpers.
-- Dashboard permission checks use `services.AuthService.RequirePermission` or the established permission helper before domain work.
-- Write responses through `httpx.WriteJSON`; preserve the shared `JsonResult` contract.
-- Paginated responses use `web.PageResult` with `data.results` and `data.page`.
-- Convert not-found, validation, permission, and persistence failures into stable application errors. Never expose raw SQL errors to clients.
+- 所有路由都在 `internal/bootstrap/routes.go` 中显式声明；handler 名称不会自动创建端点。
+- 公开/产品 API 位于 `/api/*` 下，需要认证的管理 API 位于 `/api/dashboard/*` 下，回调位于 `/api/third/*` 下，WebSocket 位于 `/api/ws/*` 下。
+- 新增资源专属的 `register...Routes` 函数或扩展现有的函数，然后在 `addRouter` 中挂载到正确的分组。
+- 遵循现有资源约定：详情通常用 `GET /:id`，列表用 `/list`，写操作使用显式 POST 动作如 `/create`、`/update`、`/delete`，领域动作保留其既定的 snake_case 路径名。
+- 不要引入 `/api/v1`、自动路由假设或不必要的深层嵌套资源路径。
+- Handler 名称与注册的方法和路径对应，例如 `XxxGetBy`、`XxxAnyList`、`XxxPostCreate`。
+- 使用 `internal/pkg/httpx/params` 和 `internal/pkg/httpx` 辅助函数解析 JSON/表单/query/path 参数。
+- 控制台权限检查在领域工作之前使用 `services.AuthService.RequirePermission` 或既定的权限辅助函数。
+- 通过 `httpx.WriteJSON` 写入响应；保持共享的 `JsonResult` 契约。
+- 分页响应使用 `web.PageResult`，包含 `data.results` 和 `data.page`。
+- 将未找到、校验失败、权限不足和持久化失败转换为稳定的应用错误。绝不要把原始 SQL 错误暴露给客户端。
 
-### 4.5 Backend Internationalization
+### 4.5 后端国际化
 
-- Any new or changed user-visible backend error must support every backend locale, currently `zh-CN` and `en-US`.
-- Add matching keys to both `internal/pkg/i18nx/locales/zh-CN.yml` and `internal/pkg/i18nx/locales/en-US.yml` in the same change.
-- Services should return localized application errors through the `errorsx.*I18n` helpers.
-- Handlers that need an immediate localized response use `httpx.JsonErrorMsg(ctx, key, args...)`; other request-context translation uses `i18nx.T`.
-- Do not hard-code Chinese or English error sentences in handlers/services when the text can reach a user.
-- Keep format arguments equivalent across locales and cover new reusable/error-format behavior with focused tests.
+- 任何新增或变更的、用户可见的后端错误都必须支持全部后端语言，目前为 `zh-CN` 和 `en-US`。
+- 在同一次改动中，向 `internal/pkg/i18nx/locales/zh-CN.yml` 和 `internal/pkg/i18nx/locales/en-US.yml` 添加对应的键。
+- Service 应通过 `errorsx.*I18n` 辅助函数返回本地化的应用错误。
+- 需要立即返回本地化响应的 handler 使用 `httpx.JsonErrorMsg(ctx, key, args...)`；其他请求上下文内的翻译使用 `i18nx.T`。
+- 当中英文案可能触达用户时，不要在 handler/service 中硬编码中英文错误语句。
+- 各语言之间保持格式化参数一致，并为新的可复用/错误格式化行为补充聚焦测试。
 
-## 5. Frontend
+## 5. 前端
 
-### 5.1 Component and Data Boundaries
+### 5.1 组件与数据边界
 
-- Application routes live under `web/app`; reusable business components live under `web/components`; route-private components live in the route's `_components` directory.
-- Reuse `web/components/ui/*` primitives. Do not edit these shadcn base components for a feature-specific requirement.
-- Use the current Base UI/shadcn component API as implemented in the repository; do not assume APIs such as Radix `asChild` exist.
-- Use `@/*` imports for code within `web`.
-- Client components must declare `"use client"` when they use state, effects, browser APIs, or client-only hooks.
-- Keep resource APIs in `web/lib/api/*` and route all normal requests through `web/lib/api/client.ts`.
-- Pages, business components, and stores must not implement their own `JsonResult` parsing, auth header handling, token refresh, or login-expiry cleanup.
-- Direct `fetch` is reserved for unsupported transports such as third-party calls, binary transfers, SSE, and WebSocket handshakes; explain the exception in code.
-- Prefer `OptionCombobox` for standard dropdowns rather than adding shadcn Select-based business controls.
-- Format displayed timestamps with `formatDateTime` from `web/lib/utils.ts` unless the product explicitly requires a different representation.
+- 应用路由位于 `web/app`；可复用业务组件位于 `web/components`；路由私有组件位于该路由的 `_components` 目录。
+- 复用 `web/components/ui/*` 基础组件。不要为了某个功能的特定需求修改这些 shadcn 基础组件。
+- 使用仓库中实际实现的 Base UI/shadcn 组件 API；不要假设存在 Radix 的 `asChild` 等 API。
+- `web` 内的代码使用 `@/*` 导入。
+- 客户端组件在使用状态、effect、浏览器 API 或仅客户端可用的 hook 时，必须声明 `"use client"`。
+- 资源 API 放在 `web/lib/api/*`，所有常规请求都通过 `web/lib/api/client.ts` 发起。
+- 页面、业务组件和 store 不得自行实现 `JsonResult` 解析、鉴权头处理、令牌刷新或登录过期清理。
+- 直接使用 `fetch` 仅限于不支持的传输场景，例如第三方调用、二进制传输、SSE 和 WebSocket 握手；须在代码中说明例外原因。
+- 标准下拉选择优先使用 `OptionCombobox`，而不是新增基于 shadcn Select 的业务控件。
+- 展示的时间戳使用 `web/lib/utils.ts` 中的 `formatDateTime` 格式化，除非产品明确要求其他表现形式。
 
-### 5.2 Dashboard Pages
+### 5.2 控制台页面
 
-Before building a dashboard page, inspect `web/components/dashboard/crud`, `web/components/dashboard/list`, and `web/components/dashboard-page.tsx`.
+构建控制台页面之前，先查看 `web/components/dashboard/crud`、`web/components/dashboard/list` 和 `web/components/dashboard-page.tsx`。
 
-Use this order of preference:
+按以下优先级顺序选择：
 
-1. `DashboardCrudPage` for standard create/read/update/delete resources.
-2. `DashboardListPage` for read-only or custom-content paginated resources.
-3. `useDashboardPagedList` when layout is bespoke but list query/filter/pagination lifecycle is standard.
-4. `DashboardPage`, `DashboardToolbar`, `DashboardTableShell`, and related low-level primitives only for interactions that cannot fit the higher-level components.
+1. 标准增删改查资源使用 `DashboardCrudPage`。
+2. 只读或自定义内容的分页资源使用 `DashboardListPage`。
+3. 布局是定制的、但列表查询/筛选/分页生命周期是标准的，使用 `useDashboardPagedList`。
+4. 只有当高层级组件无法满足交互需求时，才使用 `DashboardPage`、`DashboardToolbar`、`DashboardTableShell` 及相关底层原语。
 
-Rules:
+规则：
 
-- Do not copy a resource page to recreate standard filters, query/reset/refresh actions, pagination, loading/empty states, confirmations, row actions, or dialogs.
-- Configure `DashboardCrudPage` through its filters, columns, labels, service callbacks, row actions, sorting, and form/dialog extension points before adding page-local infrastructure.
-- Use its schema-driven `DashboardCrudFormDialog` when supported. A genuinely custom form may live in `_components` and should normally use `react-hook-form`, `zod`, and `Field`.
-- Configure `DashboardListPage` with columns or `renderContent`, and use `renderToolbarActions` for resource-specific actions.
-- Business API knowledge stays in the page/service module; generic dashboard components must not import a resource-specific API.
-- A change to `web/components/dashboard/*` must be generic, backward-compatible, and useful beyond one page. Otherwise keep it local to the feature.
+- 不要复制某个资源页面来重建标准筛选、查询/重置/刷新动作、分页、加载/空状态、确认框、行操作或对话框。
+- 在添加页面本地基础设施之前，先通过 `DashboardCrudPage` 的筛选器、列、标签、服务回调、行操作、排序以及表单/对话框扩展点进行配置。
+- 在支持的情况下使用其 schema 驱动的 `DashboardCrudFormDialog`。真正自定义的表单可以放在 `_components` 中，通常应使用 `react-hook-form`、`zod` 和 `Field`。
+- 通过列或 `renderContent` 配置 `DashboardListPage`，资源专属动作使用 `renderToolbarActions`。
+- 业务 API 知识留在页面/服务模块中；通用控制台组件不得导入资源专属 API。
+- 对 `web/components/dashboard/*` 的改动必须是通用的、向后兼容的、且对不止一个页面有用。否则应将其局限在功能模块内。
 
-### 5.3 Frontend Internationalization
+### 5.3 前端国际化
 
-- Every frontend feature and modification must work in all `SUPPORTED_LOCALES`, currently `zh-CN` and `en-US`.
-- Add every new key to both `web/messages/zh-CN.json` and `web/messages/en-US.json` in the same change, preserving matching structure.
-- React pages/components use `useI18n()`; locale-aware formatting/mapping may also use `useAppLocale()`.
-- Non-React code uses `translateCurrentMessage()` or `translateMessage()` from `web/i18n/messages.ts`.
-- Do not hard-code user-visible copy in JSX/TSX, toast messages, dialogs, confirmations, placeholders, validation, empty/loading/error states, tooltips, accessibility labels, or client-side fallback errors.
-- Product names, protocol literals, user content, and raw business data do not need translation unless the UI already provides a display-name mapping.
-- Dashboard labels supplied to shared CRUD/list components must come from translation keys.
-- Centralize localized display names for backend identifiers/enums in a reusable `web/lib/*-i18n.ts` helper instead of duplicating locale switches across pages.
-- Preserve the same placeholders in every locale and interpolate with `t(key, values)`; do not assemble sentences by concatenating translated fragments.
-- Locale configuration belongs to `AppI18nProvider` and `web/i18n/config.ts`; features must not introduce separate locale detection or state.
+- 每一个前端功能和改动都必须在所有 `SUPPORTED_LOCALES`（目前为 `zh-CN` 和 `en-US`）下正常工作。
+- 每个新键都要在同一次改动中同时添加到 `web/messages/zh-CN.json` 和 `web/messages/en-US.json`，保持结构一致。
+- React 页面/组件使用 `useI18n()`；语言相关的格式化/映射也可以使用 `useAppLocale()`。
+- 非 React 代码使用 `web/i18n/messages.ts` 中的 `translateCurrentMessage()` 或 `translateMessage()`。
+- 不要在 JSX/TSX、toast 消息、对话框、确认框、占位符、校验提示、空/加载/错误状态、工具提示、无障碍标签或客户端兜底错误中硬编码用户可见文案。
+- 产品名称、协议字面量、用户内容和原始业务数据无需翻译，除非 UI 已提供显示名映射。
+- 提供给共享 CRUD/list 组件的控制台标签必须来自翻译键。
+- 将后端标识/枚举的本地化显示名集中到可复用的 `web/lib/*-i18n.ts` 辅助文件中，而不是在各页面重复编写语言分支。
+- 每种语言保留相同的占位符并用 `t(key, values)` 插值；不要通过拼接翻译片段来组装句子。
+- 语言配置归属于 `AppI18nProvider` 和 `web/i18n/config.ts`；各功能不得引入独立的语言检测或状态。
 
-### 5.4 Commercial-Grade UI and Interaction
+### 5.4 商业级 UI 与交互
 
-This is a commercial product, not a prototype or component demo. UI work is complete only when it is visually coherent, interaction-complete, responsive, localized, and credible with real production data.
+这是一个商业产品，不是原型或组件演示。UI 工作只有在视觉统一、交互完整、响应式、已本地化、并能以真实生产数据可信呈现时才算完成。
 
-#### Visual Quality
+#### 视觉质量
 
-- Follow the existing design language, spacing scale, typography, radius, color tokens, and component variants. A new feature must look native to the product rather than like a pasted template.
-- In support platform UI, if rounded corners are needed, use `rounded-md` consistently.
-- Support platform components should not add `shadow`.
-- Establish a clear hierarchy: page title/primary action, filters or context, main content, and secondary information. Do not make every region a card or every action visually prominent.
-- Prefer restrained, purposeful styling. Avoid decorative gradients, oversized hero text, excessive shadows, glass effects, emoji icons, random accent colors, and ornamental copy unless the product context explicitly calls for them.
-- Use Lucide icons consistently. Choose icons by meaning, keep icon size and stroke weight aligned with neighboring controls, and never use icons as decoration without communicative value.
-- Keep spacing and alignment deliberate at every breakpoint. Labels, inputs, table columns, action groups, dialog footers, and empty states must align cleanly without ad hoc offsets.
-- Design for realistic content, not ideal sample text. Verify long names, multiline content, large counts, missing optional fields, and mixed Chinese/English values. Use wrapping, truncation, tooltips, or scroll containers intentionally.
-- Preserve information density appropriate to an operations dashboard. Do not waste large areas on decoration, but do not compress controls until scanning and clicking become difficult.
+- 遵循现有设计语言、间距尺度、字体排版、圆角、色彩令牌和组件变体。新功能必须看起来像产品原生的一部分，而不是粘贴进来的模板。
+- 在控制台（support platform）UI 中，如需圆角，统一使用 `rounded-md`。
+- 控制台组件不应添加 `shadow`。
+- 建立清晰的层次：页面标题/主要操作、筛选或上下文、主要内容、次要信息。不要把每个区域都做成卡片，也不要让每个操作都在视觉上突出。
+- 优先采用克制、有目的性的样式。避免装饰性渐变、超大标题文字、过度阴影、玻璃拟态、emoji 图标、随意的强调色和装饰性文案，除非产品场景明确需要。
+- 一致地使用 Lucide 图标。按含义选择图标，保持图标尺寸和描边粗细与邻近控件一致，绝不使用没有传达意义的纯装饰性图标。
+- 在每个断点下保持间距和对齐的严谨。标签、输入框、表格列、操作组、对话框页脚和空状态必须整齐对齐，不得有临时拼凑的偏移。
+- 为真实内容而非理想示例文本而设计。验证长名称、多行内容、大数量、缺失可选字段以及中英文混排的情况。有意识地使用换行、截断、工具提示或滚动容器。
+- 保持适合运营控制台的信息密度。不要把大面积空间浪费在装饰上，但也不要把控件压缩到难以浏览和点击。
 
-#### Interaction Completeness
+#### 交互完整性
 
-- Every asynchronous action must have an immediate and unambiguous state: pending/loading, success, failure, and retry or recovery when appropriate.
-- Prevent duplicate submissions. Disable or lock the initiating control while a mutation is pending and show action-specific progress text or a spinner without causing layout shift.
-- Keep feedback close to the action. Use inline validation for field problems, contextual error states for failed content, and toast notifications for completed background or page-level actions.
-- Never silently discard user input. Warn before closing, navigating away, resetting, or switching context when there are meaningful unsaved changes.
-- Destructive, irreversible, security-sensitive, or broad-impact operations require confirmation that clearly names the object and consequence. Do not use a generic “Are you sure?” message.
-- Confirmation is not a substitute for good defaults: routine reversible actions should remain efficient and should not be interrupted by unnecessary modal prompts.
-- After create/update/delete operations, keep list state coherent: refresh affected data, preserve useful filters/page position when possible, close dialogs only on success, and prevent stale selections or detail panels.
-- Buttons and menu items must use precise verbs describing the result. Avoid vague labels such as “OK”, “Submit”, or “Process” when a specific action name is available.
-- Preserve keyboard behavior and focus flow: Enter submits only where expected, Escape closes dismissible overlays, focus moves into dialogs and returns to the trigger, and destructive actions are not the accidental default.
-- Interactive rows, icons, badges, and text links must look interactive only when they are interactive. Do not rely on hover-only discoverability for essential actions.
+- 每个异步操作都必须有即时且明确的状态：进行中/加载中、成功、失败，以及在适当时提供重试或恢复。
+- 防止重复提交。变更进行中时禁用或锁定触发控件，并显示针对该操作的进度文案或加载图标，且不引起布局跳动。
+- 反馈要贴近操作本身。字段问题使用内联校验，内容加载失败使用情境化错误状态，已完成的后台或页面级操作使用 toast 通知。
+- 绝不静默丢弃用户输入。当存在有意义的未保存改动时，在关闭、离开页面、重置或切换上下文之前发出警告。
+- 破坏性、不可逆、安全敏感或影响广泛的操作需要确认，确认文案须明确指出操作对象和后果。不要使用泛化的“你确定吗？”消息。
+- 确认不能替代良好的默认值：常规可逆操作应保持高效，不应被不必要的弹窗打断。
+- 创建/更新/删除操作后，保持列表状态一致：刷新受影响的数据，尽可能保留有用的筛选条件/页码位置，仅在成功时关闭对话框，防止出现过期的选中项或详情面板。
+- 按钮和菜单项必须使用准确描述结果的动词。当有具体的操作名可用时，避免“确定”“提交”“处理”这类模糊标签。
+- 保持键盘行为和焦点流转：Enter 仅在预期场景提交，Escape 关闭可 dismiss 的浮层，焦点进入对话框并在关闭后返回触发元素，破坏性操作不能是意外的默认项。
+- 可交互的行、图标、徽标和文字链接必须仅在确实可交互时才呈现可交互的外观。不要依赖仅悬停可见来发现关键操作。
 
-#### Forms and Dialogs
+#### 表单与对话框
 
-- Use the smallest suitable interaction container: inline editing for simple local changes, a dialog for focused tasks, and a full page/workbench for complex or multi-step workflows.
-- Dialogs need a clear title, concise context when necessary, stable body layout, and a consistent footer with secondary action before primary action. Long content must scroll inside the dialog without pushing actions off-screen.
-- Forms must have visible labels, appropriate controls, useful defaults, required/optional semantics, and examples or help text only where they reduce ambiguity.
-- Validate at the right time: do not show errors before the user has interacted, clear stale errors after correction, and map backend validation failures to the relevant field when possible.
-- Preserve entered values after failed submission. Do not reset or close a form until the server confirms success.
-- Dependent fields must clearly reflect disabled/loading/empty states. When one field invalidates another, update it predictably and explain the dependency when it is not obvious.
-- Configuration and high-impact forms should not expose a permanently editable surface when a deliberate edit mode improves safety. Saving sensitive configuration requires explicit user intent and appropriate confirmation.
+- 使用最小且合适的交互容器：简单的局部改动用内联编辑，聚焦的任务用对话框，复杂或多步骤工作流用整页/工作台。
+- 对话框需要清晰的标题、必要时简洁的上下文说明、稳定的正文布局，以及一致的页脚（次要操作在前、主要操作在后）。长内容必须在对话框内部滚动，而不能把按钮挤出屏幕。
+- 表单必须有可见标签、合适的控件、有用的默认值、必填/选填语义，示例或帮助文本仅在能减少歧义时提供。
+- 在正确的时机校验：不要在用户交互前显示错误，修正后清除过期错误，并尽可能把后端校验失败映射到对应字段。
+- 提交失败后保留已输入的值。在服务器确认成功之前不要重置或关闭表单。
+- 依赖字段必须清晰反映禁用/加载/空状态。当一个字段使另一个字段失效时，应以可预测的方式更新后者，并在依赖关系不明显时加以说明。
+- 配置类和高影响表单不应在刻意的编辑模式能提升安全性时，仍暴露永久可编辑的界面。保存敏感配置需要明确的用户意图和恰当的确认。
 
-#### Lists, Tables, and Operational Screens
+#### 列表、表格与运营界面
 
-- Use the shared Dashboard CRUD/list system and maintain consistent toolbar, filter, pagination, loading, empty, and action placement across resources.
-- Filters must distinguish draft values from applied query state. Query, reset, refresh, pagination, and URL/state behavior should be predictable and must not unexpectedly erase one another.
-- Tables must remain scannable: align comparable values, keep action columns stable, use badges sparingly for status, avoid dense multiline cells when a detail view is more appropriate, and provide horizontal overflow on narrow screens.
-- Empty states must distinguish “no data exists” from “no results match the current filters” and offer the most relevant next action when the user can resolve the state.
-- Loading states should preserve layout. Prefer skeletons for content whose shape is known and compact spinners for localized actions; avoid replacing an entire stable page with a centered spinner.
-- Error states must explain what failed in user terms and provide retry when retry is meaningful. Never leave a blank table or empty panel after a request failure.
-- Bulk actions must show selection count, affected scope, eligibility, and partial-failure results. Clear selection when it is no longer valid.
+- 使用共享的控制台 CRUD/list 体系，在各资源之间保持一致的工具栏、筛选、分页、加载、空状态和操作位置。
+- 筛选必须区分草稿值与已应用的查询状态。查询、重置、刷新、分页和 URL/状态行为应当可预测，不得意外地相互清除。
+- 表格必须保持可扫描性：对齐可比较的值，保持操作列稳定，状态徽标少用，当详情视图更合适时避免拥挤的多行单元格，并在窄屏上提供横向滚动。
+- 空状态必须区分“数据不存在”与“当前筛选无匹配结果”，并在用户可以自行解决时提供最相关的下一步操作。
+- 加载状态应保持布局。形状已知的内容优先使用骨架屏，局部操作使用紧凑的加载图标；避免用居中的加载图标替换整个稳定页面。
+- 错误状态必须用用户能理解的措辞说明失败原因，并在重试有意义时提供重试。请求失败后绝不要留下空白表格或空面板。
+- 批量操作必须显示选中数量、影响范围、适用条件及部分失败的结果。当选中项不再有效时清除选择。
 
-#### Responsive and Accessibility Requirements
+#### 响应式与无障碍要求
 
-- Every changed screen must work at desktop and narrow/mobile widths. Do not treat horizontal clipping, overlapping controls, wrapped action chaos, or off-screen dialog buttons as acceptable.
-- Responsive behavior must preserve task priority: primary actions remain reachable, secondary actions may move into menus, filters may stack or collapse, and tables may scroll without hiding row identity/actions.
-- Use semantic controls and accessible names. Icon-only buttons require localized accessible labels and tooltips where the meaning is not universally obvious.
-- Maintain visible focus states, logical tab order, sufficient target sizes, and adequate text/background contrast. Do not encode status or errors using color alone.
-- Respect reduced-motion preferences. Animations should explain state or continuity, remain subtle, and never delay work.
+- 每个改动的界面都必须在桌面宽度和窄屏/移动宽度下可用。不得把横向裁切、控件重叠、操作换行混乱或对话框按钮超出屏幕视为可接受。
+- 响应式行为必须保持任务优先级：主要操作始终可触达，次要操作可以收进菜单，筛选项可以堆叠或折叠，表格可以滚动但不得隐藏行标识/操作。
+- 使用语义化控件和无障碍名称。仅图标的按钮在含义并非普遍显而易见时，需要本地化的无障碍标签和工具提示。
+- 保持可见的焦点状态、合理的 Tab 顺序、足够的点击目标尺寸和充分的文字/背景对比度。不要仅用颜色表达状态或错误。
+- 尊重“减少动态效果”偏好。动画应有助于表达状态或连续性，保持克制，且绝不耽误操作。
 
-#### Product Copy and Data Credibility
+#### 产品文案与数据可信度
 
-- Copy must sound like a finished product: concise, specific, consistent, and action-oriented. Do not expose implementation jargon, placeholder prose, “TODO”, mock labels, debug wording, or developer instructions to users.
-- Do not ship fake statistics, sample records, disabled-looking placeholder buttons, decorative charts without meaning, or interactions that only log to the console.
-- Distinguish unavailable features from empty data. If a capability is not implemented, do not render a control that pretends it is functional.
-- User-visible names, statuses, permissions, dates, and errors must use the established formatting and i18n mappings rather than raw backend identifiers.
+- 文案必须像成品：简洁、具体、一致、以行动为导向。不要向用户暴露实现术语、占位符式文字、“TODO”、模拟标签、调试措辞或开发者说明。
+- 不要交付虚假统计、示例记录、看似禁用的占位按钮、无意义的装饰图表，或只会向控制台打印日志的交互。
+- 区分功能不可用与数据为空。如果某项能力尚未实现，不要渲染一个假装可用的控件。
+- 用户可见的名称、状态、权限、日期和错误必须使用既定的格式化和 i18n 映射，而不是原始的后端标识。
 
-#### UI Verification
+#### UI 验证
 
-- For meaningful UI changes, inspect the finished screen in a real browser at representative desktop and narrow widths. Source review and typecheck alone are not sufficient visual validation.
-- Exercise the complete interaction, including initial load, populated state, empty/filtered state, validation failure, server failure when practical, pending/disabled behavior, success, cancel/close, and refresh.
-- Check both `zh-CN` and `en-US`; verify that translated copy does not overflow, truncate critical meaning, or break control alignment.
-- Before handoff, remove temporary data, debug UI, console output, test-only shortcuts, and visual artifacts introduced during verification.
-- When browser verification cannot be performed, state that limitation explicitly; do not describe the UI as visually verified.
+- 对于有意义的 UI 改动，在真实浏览器中以有代表性的桌面宽度和窄屏宽度检查完成后的界面。仅靠源码审查和类型检查不足以完成视觉验证。
+- 演练完整交互，包括初始加载、有数据状态、空/筛选状态、校验失败、在可行时模拟服务器失败、进行中/禁用行为、成功、取消/关闭以及刷新。
+- 同时检查 `zh-CN` 和 `en-US`；验证翻译文案不会溢出、截断关键含义或破坏控件对齐。
+- 交付前移除验证期间引入的临时数据、调试 UI、控制台输出、仅用于测试的快捷方式和视觉残留。
+- 当无法进行浏览器验证时，须明确说明这一限制；不要将 UI 描述为已经过视觉验证。
 
-### 5.5 Generated and Embedded Frontend Assets
+### 5.5 生成的与内嵌的前端资产
 
-- `web/lib/generated/enums.ts` is generated by `task enums`; do not edit it manually.
-- `web/public/sdk/agent-desk-sdk.min.js` is generated from the SDK source. When SDK source changes, run `cd web && pnpm build:sdk` and its focused SDK tests.
-- `web/public/flowgram-editor` is produced from `flowgram-editor`; edit the source project, not the generated public output.
-- When changing `flowgram-editor`, use its own `pnpm` scripts and ensure the embedding build still succeeds.
-- The Next.js application is statically exported/embedded into the Go binary. Avoid runtime-only Next.js features that conflict with the current export and embedding model.
+- `web/lib/generated/enums.ts` 由 `task enums` 生成；不要手工编辑。
+- `web/public/sdk/agent-desk-sdk.min.js` 由 SDK 源码生成。SDK 源码变更时，运行 `cd web && pnpm build:sdk` 及其聚焦的 SDK 测试。
+- `web/public/flowgram-editor` 由 `flowgram-editor` 产出；编辑源项目，而不是生成的 public 产物。
+- 修改 `flowgram-editor` 时，使用它自己的 `pnpm` 脚本，并确保内嵌构建仍然成功。
+- Next.js 应用以静态导出方式内嵌进 Go 二进制文件。避免与当前导出和内嵌模式冲突的、仅运行时可用的 Next.js 特性。
 
-## 6. Testing and Validation
+## 6. 测试与验证
 
-Validation must match the changed surface. Do not claim checks that were not run.
+验证必须与改动的范围相匹配。不要声称运行过并未执行的检查。
 
-- Go formatting: run `gofmt` on every changed `.go` file.
-- Go behavior: add focused tests for changed business rules, transactions, security boundaries, parsing, and reusable helpers; run the narrow package tests first, then `go test ./...` when practical.
-- Frontend TypeScript: run `cd web && pnpm typecheck` for frontend changes.
-- Frontend lint: run `cd web && pnpm lint` for broader component/page changes or when lint-sensitive code changed.
-- Frontend logic: run relevant `node --test ...` files when changing utilities, i18n mappings, generated SDK behavior, or other modules with focused tests.
-- Workflow editor: run the relevant `flowgram-editor` lint/build commands for changes in that project.
-- Generation: after model CRUD or shared enum changes, run the corresponding `task generator` or `task enums` and review generated diffs.
-- Build: use `task build` when changes affect frontend embedding, build configuration, generated public assets, or release assembly.
-- Browser verification is expected for meaningful visual or interaction changes when a runnable environment is available; state explicitly when it was not performed.
-- Documentation-only changes require at least `git diff --check` and verification that every referenced path/command exists.
+- Go 格式化：对每个改动的 `.go` 文件运行 `gofmt`。
+- Go 行为：为改动的业务规则、事务、安全边界、参数解析和可复用辅助函数添加聚焦测试；先运行小范围的包测试，条件允许时再运行 `go test ./...`。
+- 前端 TypeScript：前端改动运行 `cd web && pnpm typecheck`。
+- 前端 lint：较广泛的组件/页面改动或改动了 lint 敏感代码时，运行 `cd web && pnpm lint`。
+- 前端逻辑：改动工具函数、i18n 映射、生成的 SDK 行为或其他有聚焦测试的模块时，运行相关的 `node --test ...` 文件。
+- 工作流编辑器：改动该项目时运行 `flowgram-editor` 相关的 lint/build 命令。
+- 代码生成：模型 CRUD 或共享枚举变更后，运行对应的 `task generator` 或 `task enums` 并审查生成的差异。
+- 构建：当改动影响前端内嵌、构建配置、生成的公共资产或发布装配时，使用 `task build`。
+- 当有可运行环境时，有意义的视觉或交互改动应进行浏览器验证；未执行时须明确说明。
+- 仅文档类改动至少需要 `git diff --check`，并验证每个引用的路径/命令确实存在。
 
-## 7. Completion Checklist
+## 7. 完成检查清单
 
-Before handing off a change, confirm the applicable items:
+交付改动之前，确认适用的各项：
 
-- The implementation follows current layer/component ownership and does not create reverse dependencies.
-- Transactions cover exactly the operations that must be atomic, and all transactional DB calls use the same `ctx.Tx`.
-- API routes are explicitly registered and responses preserve `JsonResult`/`PageResult` contracts.
-- Models, migrations, queries, and tests remain compatible with SQLite and MySQL.
-- Backend and frontend user-visible text is complete in both Chinese and English.
-- Dashboard pages reuse the highest-level suitable component under `web/components/dashboard/*`.
-- UI changes meet the commercial-grade standard: complete states, precise feedback, safe mutations, responsive layout, accessible controls, credible copy/data, and no demo-only behavior.
-- Generated files were regenerated from their source and were not manually edited.
-- Relevant tests/typechecks/lint/build/browser checks were run, and any validation limitation is reported.
-- `git diff --check` passes and unrelated worktree changes remain untouched.
+- 实现遵循当前的分层/组件职责划分，没有产生反向依赖。
+- 事务恰好覆盖必须原子的操作，且所有事务内数据库调用使用同一个 `ctx.Tx`。
+- API 路由已显式注册，响应保持 `JsonResult`/`PageResult` 契约。
+- 模型、迁移、查询和测试保持 SQLite 和 MySQL 兼容。
+- 后端和前端用户可见文本均中英文完整。
+- 控制台页面复用了 `web/components/dashboard/*` 下最高层级的合适组件。
+- UI 改动达到商业级标准：状态完整、反馈精准、变更安全、响应式布局、控件无障碍、文案/数据可信，无仅用于演示的行为。
+- 生成文件由源头重新生成，未被手工编辑。
+- 已运行相关的测试/类型检查/lint/构建/浏览器检查，并报告了任何验证限制。
+- `git diff --check` 通过，且无关的工作区改动保持原样未动。

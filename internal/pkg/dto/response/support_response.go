@@ -46,6 +46,13 @@ type SupportAICustomerServiceUserTokenResponse struct {
 	ExpiresAt string `json:"expiresAt"`
 }
 
+// SystemConfigResponse 为运营侧系统配置。
+type SystemConfigResponse struct {
+	LogLevel                        string `json:"logLevel"`
+	ConversationIdleTimeout         int    `json:"conversationIdleTimeout"`
+	ConversationIdleReminderMessage string `json:"conversationIdleReminderMessage"`
+}
+
 type DocPageResponse struct {
 	ID                        int64               `json:"id"`
 	ParentID                  int64               `json:"parentId"`

@@ -2,6 +2,7 @@ package services
 
 import (
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/constants"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/request"
 	"agent-desk/internal/pkg/enums"
@@ -171,6 +172,9 @@ func (s *roleService) AssignPermissions(roleID int64, permissionIDs []int64, ope
 	role := s.Get(roleID)
 	if role == nil {
 		return errorsx.InvalidParamI18n("error.e0305")
+	}
+	if role.IsSystem && (operator == nil || !slices.Contains(operator.Roles, string(constants.RoleCodeSuperAdmin))) {
+		return errorsx.ForbiddenI18n("error.e0293")
 	}
 
 	return s.replaceRolePermissions(roleID, permissionIDs, operator)

@@ -10,7 +10,6 @@ import (
 	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/pkg/errorsx"
 	"agent-desk/internal/pkg/openidentity"
-	"agent-desk/internal/wxwork"
 
 	"github.com/mlogclub/simple/common/strs"
 	"github.com/silenceper/wechat/v2/work/kf"
@@ -31,8 +30,21 @@ func newWxWorkKFInboundService() *wxWorkKFInboundService {
 type wxWorkKFInboundService struct {
 }
 
+// kfClientByOpenKfID 按 openKfID 找到启用渠道，并返回该渠道绑定应用的客服客户端。
+func (s *wxWorkKFInboundService) kfClientByOpenKfID(openKfID string) (*kf.Client, error) {
+	channel := ChannelService.GetEnabledWxWorkKFChannelByOpenKfID(openKfID)
+	if channel == nil {
+		return nil, errorsx.InvalidParamI18n("error.e0231")
+	}
+	workCli, err := ChannelService.GetWxWorkCliByChannel(channel)
+	if err != nil {
+		return nil, err
+	}
+	return workCli.GetKF()
+}
+
 func (s *wxWorkKFInboundService) SyncCallbackMessages(message kf.CallbackMessage) error {
-	cli, err := wxwork.GetWorkCli().GetKF()
+	cli, err := s.kfClientByOpenKfID(message.OpenKfID)
 	if err != nil {
 		return err
 	}
@@ -139,7 +151,7 @@ func (s *wxWorkKFInboundService) handleImageMessage(item syncmsg.Message) error 
 	if err != nil {
 		return err
 	}
-	canonicalPayload, content, err := s.buildInboundAssetPayload(conversation.ID, strings.TrimSpace(payload.Image.MediaID))
+	canonicalPayload, content, err := s.buildInboundAssetPayload(conversation, strings.TrimSpace(payload.Image.MediaID))
 	if err != nil {
 		return err
 	}
@@ -169,7 +181,7 @@ func (s *wxWorkKFInboundService) handleFileMessage(item syncmsg.Message) error {
 	if err != nil {
 		return err
 	}
-	canonicalPayload, content, err := s.buildInboundAssetPayload(conversation.ID, strings.TrimSpace(payload.File.MediaID))
+	canonicalPayload, content, err := s.buildInboundAssetPayload(conversation, strings.TrimSpace(payload.File.MediaID))
 	if err != nil {
 		return err
 	}
@@ -514,12 +526,17 @@ func (s *wxWorkKFInboundService) appendConversationEvent(conversationID int64, c
 	})
 }
 
-func (s *wxWorkKFInboundService) buildInboundAssetPayload(conversationID int64, mediaID string) (string, string, error) {
+func (s *wxWorkKFInboundService) buildInboundAssetPayload(conversation *models.Conversation, mediaID string) (string, string, error) {
 	mediaID = strings.TrimSpace(mediaID)
 	if mediaID == "" {
 		return "", "", errorsx.InvalidParamI18n("error.e0095")
 	}
-	materialCli := wxwork.GetWorkCli().GetMaterial()
+	channel := ChannelService.Get(conversation.ChannelID)
+	workCli, err := ChannelService.GetWxWorkCliByChannel(channel)
+	if err != nil {
+		return "", "", err
+	}
+	materialCli := workCli.GetMaterial()
 	data, err := materialCli.GetTempFile(mediaID)
 	if err != nil {
 		return "", "", err

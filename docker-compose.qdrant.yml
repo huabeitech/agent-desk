@@ -1,0 +1,30 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    volumes:
+      - ./data/qdrant-data:/qdrant/storage
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+
+  agent-desk:
+    image: yekay/agent-desk:1.6.3
+    restart: unless-stopped
+    depends_on:
+      qdrant:
+        condition: service_started
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./data/agent-desk-data:/app/data
+      - ./docker/agent-desk.yaml:/app/config/config.yaml:ro
+    environment:
+      TZ: Asia/Shanghai
+    # 兼容 Linux 宿主机访问；Docker Desktop (Windows/Mac) 默认已提供 host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  qdrant-data:
+  agent-desk-data:

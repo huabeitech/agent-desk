@@ -363,16 +363,23 @@ export function SupportChatShell() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              ) : (
-                <WindowActionButton
-                  onClick={() => setIsCloseDialogOpen(true)}
-                  aria-label={t("supportChat.closeChatWindow")}
-                  title={t("supportChat.closeChatWindow")}
-                  className="hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/45 dark:hover:text-rose-300"
-                >
-                  <XIcon className="size-4" />
-                </WindowActionButton>
-              )}
+              ) : <WindowActionButton
+                onClick={() => setIsCloseDialogOpen(true)}
+                aria-label={t("supportChat.closeWindow")}
+                title={t("supportChat.closeWindow")}
+                className="hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/45 dark:hover:text-rose-300"
+              >
+                <XIcon className="size-4" />
+              </WindowActionButton>
+              }
+              <WindowActionButton
+                onClick={handleMinimize}
+                aria-label={t("supportChat.minimize")}
+                title={t("supportChat.minimize")}
+                className="hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/45 dark:hover:text-rose-300"
+              >
+                <XIcon className="size-4" />
+              </WindowActionButton>
             </div>
             <div className="hidden shrink-0 items-center gap-1 sm:flex">
               {status !== "connected" ? (

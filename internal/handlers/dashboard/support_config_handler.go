@@ -47,3 +47,37 @@ func SupportConfigPostSave(ctx *gin.Context) {
 	}
 	httpx.WriteJSON(ctx, config)
 }
+
+func SystemConfigGetConfig(ctx *gin.Context) {
+	if _, err := services.AuthService.RequirePermission(ctx, constants.PermissionSystemConfigView); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, services.SystemConfigService.GetDashboardSystemConfig())
+}
+
+func SystemConfigPostSave(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionSystemConfigUpdate)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	req := map[string]json.RawMessage{}
+	if err := params.ReadJSON(ctx, &req); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	config, err := services.SystemConfigService.SaveSystemConfig(req, operator)
+	if err != nil {
+		if validationErr, ok := err.(*services.SystemConfigValidationError); ok {
+			locale := i18nx.Locale(ctx)
+			httpx.WriteJSON(ctx, web.JsonErrorData(errorsx.CodeInvalidParam, validationErr.Message(locale), gin.H{
+				"errors": validationErr.FieldErrorsLocale(locale),
+			}))
+			return
+		}
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, config)
+}

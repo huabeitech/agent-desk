@@ -13,6 +13,7 @@ import (
 	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/pkg/errorsx"
 	"agent-desk/internal/pkg/i18nx"
+	"agent-desk/internal/pkg/logx"
 	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/repositories"
 
@@ -32,7 +33,69 @@ const (
 	systemConfigGroupSupportCenter          = "support"
 	systemConfigKeySupportNavMenu           = "navigationMenu"
 	systemConfigKeySupportAICustomerService = "aiCustomerService"
+
+	systemConfigGroupSystem             = "system"
+	systemConfigKeyLogLevel             = "logLevel"
+	systemConfigDefaultLevel            = "warn"
+	systemConfigKeyConvIdleTimeout      = "conversationIdleTimeout"
+	systemConfigDefaultConvIdleTimeout  = 30
+	systemConfigMinConvIdleTimeout      = 5
+	systemConfigMaxConvIdleTimeout      = 1440
+	systemConfigKeyConvIdleReminder     = "conversationIdleReminderMessage"
+	systemConfigDefaultConvIdleReminder = "您已长时间没有响应，会话将在3分钟后结束。如有其它疑问，请及时响应哦"
 )
+
+// allowedLogLevels 为允许配置的日志最低级别。
+var allowedLogLevels = []string{"debug", "info", "warn", "error"}
+
+// conversationIdleReminderValidator 校验超时提醒文案（非空字符串）。
+type conversationIdleReminderValidator struct{}
+
+func (conversationIdleReminderValidator) Validate(raw json.RawMessage) (json.RawMessage, []response.ConfigFieldError, error) {
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, []response.ConfigFieldError{configFieldError("conversationIdleReminderMessage", "invalid_json", "error.systemConfig.conversationIdleReminderInvalid")}, nil
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, []response.ConfigFieldError{configFieldError("conversationIdleReminderMessage", "empty", "error.systemConfig.conversationIdleReminderInvalid")}, nil
+	}
+	normalized, err := json.Marshal(value)
+	return normalized, nil, err
+}
+
+// conversationIdleTimeoutValidator 校验会话自动关闭超时（分钟）。
+type conversationIdleTimeoutValidator struct{}
+
+func (conversationIdleTimeoutValidator) Validate(raw json.RawMessage) (json.RawMessage, []response.ConfigFieldError, error) {
+	var value int
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, []response.ConfigFieldError{configFieldError("conversationIdleTimeout", "invalid_json", "error.systemConfig.conversationIdleTimeoutInvalid")}, nil
+	}
+	if value < systemConfigMinConvIdleTimeout || value > systemConfigMaxConvIdleTimeout {
+		return nil, []response.ConfigFieldError{configFieldError("conversationIdleTimeout", "out_of_range", "error.systemConfig.conversationIdleTimeoutInvalid")}, nil
+	}
+	normalized, err := json.Marshal(value)
+	return normalized, nil, err
+}
+
+// logLevelValidator 校验日志级别取值并归一为小写。
+type logLevelValidator struct{}
+
+func (logLevelValidator) Validate(raw json.RawMessage) (json.RawMessage, []response.ConfigFieldError, error) {
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, []response.ConfigFieldError{configFieldError("logLevel", "invalid_json", "error.systemConfig.logLevelInvalid")}, nil
+	}
+	value = strings.ToLower(strings.TrimSpace(value))
+	for _, candidate := range allowedLogLevels {
+		if value == candidate {
+			normalized, err := json.Marshal(value)
+			return normalized, nil, err
+		}
+	}
+	return nil, []response.ConfigFieldError{configFieldError("logLevel", "invalid", "error.systemConfig.logLevelInvalid")}, nil
+}
 
 type configValidator interface {
 	Validate(raw json.RawMessage) (json.RawMessage, []response.ConfigFieldError, error)
@@ -99,6 +162,32 @@ var systemConfigDefinitions = map[string]map[string]systemConfigDefinition{
 			Validator:      supportAICustomerServiceConfigValidator{},
 		},
 	},
+	systemConfigGroupSystem: {
+		systemConfigKeyLogLevel: {
+			GroupCode:      systemConfigGroupSystem,
+			Key:            systemConfigKeyLogLevel,
+			TitleKey:       "systemConfig.system.logLevel.title",
+			DescriptionKey: "systemConfig.system.logLevel.description",
+			DefaultValue:   systemConfigDefaultLevel,
+			Validator:      logLevelValidator{},
+		},
+		systemConfigKeyConvIdleTimeout: {
+			GroupCode:      systemConfigGroupSystem,
+			Key:            systemConfigKeyConvIdleTimeout,
+			TitleKey:       "systemConfig.system.conversationIdleTimeout.title",
+			DescriptionKey: "systemConfig.system.conversationIdleTimeout.description",
+			DefaultValue:   systemConfigDefaultConvIdleTimeout,
+			Validator:      conversationIdleTimeoutValidator{},
+		},
+		systemConfigKeyConvIdleReminder: {
+			GroupCode:      systemConfigGroupSystem,
+			Key:            systemConfigKeyConvIdleReminder,
+			TitleKey:       "systemConfig.system.conversationIdleReminderMessage.title",
+			DescriptionKey: "systemConfig.system.conversationIdleReminderMessage.description",
+			DefaultValue:   systemConfigDefaultConvIdleReminder,
+			Validator:      conversationIdleReminderValidator{},
+		},
+	},
 }
 
 func (s *systemConfigService) Get(id int64) *models.SystemConfig {
@@ -147,11 +236,82 @@ func (s *systemConfigService) GetPublicSupportAICustomerServiceChannel() *models
 	return repositories.ChannelRepository.GetByChannelID(sqls.DB(), cfg.ChannelID)
 }
 
+// GetDashboardSystemConfig 返回运营侧系统配置。
+func (s *systemConfigService) GetDashboardSystemConfig() response.SystemConfigResponse {
+	return response.SystemConfigResponse{
+		LogLevel:                        s.LogLevel(),
+		ConversationIdleTimeout:         s.ConversationIdleTimeout(),
+		ConversationIdleReminderMessage: s.ConversationIdleReminderMessage(),
+	}
+}
+
+// LogLevel 返回已配置的日志最低级别，未配置或非法时返回默认值。
+func (s *systemConfigService) LogLevel() string {
+	item := repositories.SystemConfigRepository.FindByGroupAndKey(sqls.DB(), systemConfigGroupSystem, systemConfigKeyLogLevel)
+	if item == nil {
+		return systemConfigDefaultLevel
+	}
+	// ConfigValue 存的是 JSON 编码字符串（如 `"info"`），先解码为原始值。
+	var value string
+	if err := json.Unmarshal([]byte(item.ConfigValue), &value); err != nil {
+		value = item.ConfigValue
+	}
+	value = strings.ToLower(strings.TrimSpace(value))
+	for _, candidate := range allowedLogLevels {
+		if value == candidate {
+			return value
+		}
+	}
+	return systemConfigDefaultLevel
+}
+
+// ConversationIdleTimeout 返回会话自动关闭超时（分钟），未配置或非法时返回默认值。
+func (s *systemConfigService) ConversationIdleTimeout() int {
+	item := repositories.SystemConfigRepository.FindByGroupAndKey(sqls.DB(), systemConfigGroupSystem, systemConfigKeyConvIdleTimeout)
+	if item == nil {
+		return systemConfigDefaultConvIdleTimeout
+	}
+	var value int
+	if err := json.Unmarshal([]byte(item.ConfigValue), &value); err != nil {
+		return systemConfigDefaultConvIdleTimeout
+	}
+	if value < systemConfigMinConvIdleTimeout || value > systemConfigMaxConvIdleTimeout {
+		return systemConfigDefaultConvIdleTimeout
+	}
+	return value
+}
+
+// ConversationIdleReminderMessage 返回超时提醒文案，未配置时返回默认值。
+func (s *systemConfigService) ConversationIdleReminderMessage() string {
+	item := repositories.SystemConfigRepository.FindByGroupAndKey(sqls.DB(), systemConfigGroupSystem, systemConfigKeyConvIdleReminder)
+	if item == nil {
+		return systemConfigDefaultConvIdleReminder
+	}
+	var value string
+	if err := json.Unmarshal([]byte(item.ConfigValue), &value); err != nil {
+		return systemConfigDefaultConvIdleReminder
+	}
+	if strings.TrimSpace(value) == "" {
+		return systemConfigDefaultConvIdleReminder
+	}
+	return value
+}
+
+// SaveSupportConfig 保存支持中心配置。
 func (s *systemConfigService) SaveSupportConfig(payload map[string]json.RawMessage, operator *dto.AuthPrincipal) (response.DashboardSupportConfigResponse, error) {
 	if err := s.SaveGroupConfig(systemConfigGroupSupportCenter, payload, operator); err != nil {
 		return response.DashboardSupportConfigResponse{}, err
 	}
 	return s.GetDashboardSupportConfig(), nil
+}
+
+// SaveSystemConfig 保存系统配置并立即应用日志级别。
+func (s *systemConfigService) SaveSystemConfig(payload map[string]json.RawMessage, operator *dto.AuthPrincipal) (response.SystemConfigResponse, error) {
+	if err := s.SaveGroupConfig(systemConfigGroupSystem, payload, operator); err != nil {
+		return response.SystemConfigResponse{}, err
+	}
+	logx.SetDBLevel(logx.ParseLevel(s.LogLevel()))
+	return s.GetDashboardSystemConfig(), nil
 }
 
 func (s *systemConfigService) SaveGroupConfig(groupCode string, payload map[string]json.RawMessage, operator *dto.AuthPrincipal) error {

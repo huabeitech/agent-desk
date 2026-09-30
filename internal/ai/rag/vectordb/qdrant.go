@@ -29,10 +29,11 @@ func NewQdrantProvider(cfg *config.QdrantVectorDBConfig) (*QdrantProvider, error
 	}
 
 	client, err := qdrant.NewClient(&qdrant.Config{
-		Host:   host,
-		Port:   port,
-		APIKey: cfg.APIKey,
-		UseTLS: cfg.UseTLS,
+		Host:                   host,
+		Port:                   port,
+		APIKey:                 cfg.APIKey,
+		UseTLS:                 cfg.UseTLS,
+		SkipCompatibilityCheck: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create qdrant client: %w", err)

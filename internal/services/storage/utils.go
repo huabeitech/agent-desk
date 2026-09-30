@@ -30,9 +30,16 @@ func GenerateStorageKey(info UploadInfo) (assetID string, storageKey string) {
 }
 
 func getExt(info UploadInfo) string {
-	ext := strings.ToLower(filepath.Ext(strings.TrimSpace(info.Filename)))
-	if ext == "" {
-		ext = getExtByMimeType(info.MimeType)
+	ext := normalizeExt(filepath.Ext(strings.TrimSpace(info.Filename)))
+	if ext == "" || IsBlockedExtension(ext) {
+		ext = normalizeExt(getExtByMimeType(info.MimeType))
+	}
+	if ext == "" || IsBlockedExtension(ext) {
+		// The stored extension decides the Content-Type this origin serves. A
+		// browser-active extension must never reach the key, and no extension at
+		// all would leave the server to sniff the payload and announce whatever
+		// it finds, so both cases settle on an inert binary type.
+		return ".bin"
 	}
 	return ext
 }
@@ -47,21 +54,7 @@ func getExtByMimeType(mimeType string) string {
 		return ""
 	}
 
-	// 处理一些非标准的 MIME 类型
-	switch mediaType {
-	case "image/jfif":
-		return ".jpg"
-	case "image/pjpeg":
-		return ".jpg"
-	case "image/jpeg":
-		return ".jpg"
-	default:
-		exts, _ := mime.ExtensionsByType(mediaType)
-		if len(exts) > 0 {
-			return exts[0]
-		}
-	}
-	return ""
+	return safeExtensionForMediaType(mediaType)
 }
 
 func normalizeAssetPrefix(prefix string) string {

@@ -53,7 +53,7 @@ func (s *conversationService) FindPageByCnd(cnd *sqls.Cnd) (list []models.Conver
 	return repositories.ConversationRepository.FindPageByCnd(sqls.DB(), cnd)
 }
 
-func (s *conversationService) ListConversations(userID int64, filter request.AgentConversationFilter, keyword string, paging *sqls.Paging) ([]models.Conversation, *sqls.Paging, error) {
+func (s *conversationService) ListConversations(userID int64, isAdmin bool, filter request.AgentConversationFilter, keyword string, paging *sqls.Paging) ([]models.Conversation, *sqls.Paging, error) {
 	cnd := sqls.NewCnd().Page(paging.Page, paging.Limit)
 
 	if strs.IsNotBlank(keyword) {
@@ -72,7 +72,10 @@ func (s *conversationService) ListConversations(userID int64, filter request.Age
 	case request.AgentConversationFilterPending:
 		cnd.Eq("current_assignee_id", 0).Eq("status", enums.IMConversationStatusPending).Asc("last_active_at").Desc("id")
 	case request.AgentConversationFilterClosed:
-		cnd.Eq("current_assignee_id", userID).Eq("status", enums.IMConversationStatusClosed).Desc("last_active_at").Desc("id")
+		cnd.Eq("status", enums.IMConversationStatusClosed).Desc("last_active_at").Desc("id")
+		if !isAdmin {
+			cnd.Eq("current_assignee_id", userID)
+		}
 	default:
 		return nil, nil, errorsx.InvalidParamI18n("error.e0121")
 	}
@@ -85,12 +88,13 @@ func (s *conversationService) Updates(id int64, columns map[string]interface{}) 
 	return repositories.ConversationRepository.Updates(sqls.DB(), id, columns)
 }
 
-func (s *conversationService) getLatestNotFinishedByCustomerID(db *gorm.DB, customerID int64) *models.Conversation {
+func (s *conversationService) getLatestNotFinishedByCustomerID(db *gorm.DB, customerID, channelID int64) *models.Conversation {
 	if customerID <= 0 {
 		return nil
 	}
 	cnd := sqls.NewCnd()
 	cnd.Eq("customer_id", customerID)
+	cnd.Eq("channel_id", channelID)
 	cnd.In("status", []enums.IMConversationStatus{
 		enums.IMConversationStatusAIServing,
 		enums.IMConversationStatusPending,
@@ -115,15 +119,27 @@ func (s *conversationService) Create(externalUser openidentity.ExternalUser, cha
 			return err
 		}
 		customerName := s.getCustomerName(ctx.Tx, customerID)
-		if existing := s.getLatestNotFinishedByCustomerID(ctx.Tx, customerID); existing != nil {
+		if existing := s.getLatestNotFinishedByCustomerID(ctx.Tx, customerID, channelID); existing != nil {
 			conversation = existing
+			updates := map[string]any{"updated_at": time.Now()}
 			if customerName != "" && existing.CustomerName != customerName {
-				if err := repositories.ConversationRepository.Updates(ctx.Tx, existing.ID, map[string]any{
-					"customer_name": customerName,
-					"updated_at":    time.Now(),
-				}); err != nil {
+				updates["customer_name"] = customerName
+			}
+			// 渠道绑定的 Agent 可能变更，复用会话时同步 Agent 及服务模式
+			if existing.AIAgentID != aiAgentID {
+				updates["ai_agent_id"] = aiAgentID
+				updates["service_mode"] = aiAgent.ServiceMode
+				updates["status"] = s.resolveInitialStatus(aiAgent.ServiceMode)
+			}
+			if len(updates) > 1 {
+				if err := repositories.ConversationRepository.Updates(ctx.Tx, existing.ID, updates); err != nil {
 					return err
 				}
+				conversation.AIAgentID = aiAgentID
+				conversation.ServiceMode = aiAgent.ServiceMode
+				conversation.Status = s.resolveInitialStatus(aiAgent.ServiceMode)
+				conversation.CustomerName = customerName
+			} else if customerName != "" {
 				conversation.CustomerName = customerName
 			}
 			return nil
@@ -425,6 +441,12 @@ func (s *conversationService) closeConversation(conversationID int64, senderType
 		closeReason = strings.TrimSpace(closeReason)
 		if senderType == enums.IMSenderTypeCustomer {
 			eventDesc = "客户关闭会话"
+		} else if senderType == enums.IMSenderTypeSystem {
+			eventDesc = "系统自动关闭会话"
+			if closeReason == "" {
+				closeReason = "会话长时间无活动"
+			}
+			operatorName = "system"
 		} else {
 			if operator == nil {
 				return errorsx.InvalidParamI18n("error.e0226")
@@ -466,6 +488,103 @@ func (s *conversationService) closeConversation(conversationID int64, senderType
 		WsService.PublishConversationChanged(conversation, enums.IMRealtimeEventConversationClosed)
 	}
 	return nil
+}
+
+// AutoCloseStaleConversations 关闭超过指定时长未活跃的未关闭会话。
+func (s *conversationService) AutoCloseStaleConversations(idleTimeout time.Duration) int {
+	if idleTimeout <= 0 {
+		return 0
+	}
+	cutoff := time.Now().Add(-idleTimeout)
+	cnd := sqls.NewCnd().
+		In("status", []enums.IMConversationStatus{
+			enums.IMConversationStatusAIServing,
+			enums.IMConversationStatusPending,
+			enums.IMConversationStatusActive,
+		}).
+		Where("(last_active_at IS NULL AND updated_at < ?) OR last_active_at < ?", cutoff, cutoff).
+		Limit(100)
+	conversations := s.Find(cnd)
+	if len(conversations) == 0 {
+		return 0
+	}
+	closed := 0
+	for i := range conversations {
+		if err := s.closeConversation(conversations[i].ID, enums.IMSenderTypeSystem, "会话长时间无活动，自动关闭", nil); err != nil {
+			slog.Warn("auto close stale conversation failed",
+				"conversation_id", conversations[i].ID,
+				"error", err,
+			)
+			continue
+		}
+		closed++
+	}
+	if closed > 0 {
+		slog.Info("auto closed stale conversations",
+			"closed_count", closed,
+			"total_checked", len(conversations),
+			"idle_timeout", idleTimeout.String(),
+		)
+	}
+	return closed
+}
+
+// SendIdleReminders 向即将超时关闭的会话发送提醒消息。
+// idleTimeout 为自动关闭超时，reminderLead 为提前量（如 3 分钟）。
+func (s *conversationService) SendIdleReminders(idleTimeout, reminderLead time.Duration, message string) int {
+	if idleTimeout <= 0 || reminderLead <= 0 || strings.TrimSpace(message) == "" {
+		return 0
+	}
+	if reminderLead >= idleTimeout {
+		reminderLead = idleTimeout - time.Minute
+		if reminderLead <= 0 {
+			return 0
+		}
+	}
+	reminderCutoff := time.Now().Add(-(idleTimeout - reminderLead))
+	closeCutoff := time.Now().Add(-idleTimeout)
+	cnd := sqls.NewCnd().
+		In("status", []enums.IMConversationStatus{
+			enums.IMConversationStatusAIServing,
+			enums.IMConversationStatusPending,
+			enums.IMConversationStatusActive,
+		}).
+		Where("idle_reminder_sent_at IS NULL AND ((last_active_at IS NULL AND updated_at < ? AND updated_at >= ?) OR (last_active_at < ? AND last_active_at >= ?))", reminderCutoff, closeCutoff, reminderCutoff, closeCutoff).
+		Limit(100)
+	conversations := s.Find(cnd)
+	if len(conversations) == 0 {
+		return 0
+	}
+	sent := 0
+	for i := range conversations {
+		conv := &conversations[i]
+		if _, err := MessageService.SendAIServiceNotice(conv.ID, conv.AIAgentID, message); err != nil {
+			slog.Warn("send idle reminder failed",
+				"conversation_id", conv.ID,
+				"error", err,
+			)
+			continue
+		}
+		now := time.Now()
+		if err := repositories.ConversationRepository.Updates(sqls.DB(), conv.ID, map[string]any{
+			"idle_reminder_sent_at": now,
+			"updated_at":            now,
+		}); err != nil {
+			slog.Warn("mark idle reminder sent failed",
+				"conversation_id", conv.ID,
+				"error", err,
+			)
+			continue
+		}
+		sent++
+	}
+	if sent > 0 {
+		slog.Info("sent idle reminders",
+			"sent_count", sent,
+			"total_checked", len(conversations),
+		)
+	}
+	return sent
 }
 
 // MarkAgentConversationReadToMessage 控制台客服将会话已读推进到指定消息。

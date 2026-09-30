@@ -2,6 +2,7 @@ package services
 
 import (
 	"agent-desk/internal/models"
+	"agent-desk/internal/pkg/config"
 	"agent-desk/internal/pkg/dto"
 	"agent-desk/internal/pkg/dto/request"
 	"agent-desk/internal/pkg/dto/response"
@@ -22,6 +23,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mlogclub/simple/common/strs"
 	"github.com/mlogclub/simple/sqls"
+	"github.com/silenceper/wechat/v2/work"
 	"github.com/silenceper/wechat/v2/work/kf"
 )
 
@@ -196,7 +198,31 @@ func (s *channelService) ParseWxWorkKFChannelConfig(raw string) (*dto.WxWorkKFCh
 		return nil, err
 	}
 	cfg.OpenKfID = strings.TrimSpace(cfg.OpenKfID)
+	cfg.AgentID = strings.TrimSpace(cfg.AgentID)
 	return cfg, nil
+}
+
+// GetWxWorkCliByChannel 返回渠道绑定 agentId 对应的企微客户端。
+// 不同渠道可绑定不同应用，客户端与 access_token 均按应用隔离。
+func (s *channelService) GetWxWorkCliByChannel(channel *models.Channel) (*work.Work, error) {
+	if channel == nil {
+		return nil, errorsx.InvalidParamI18n("error.wxwork.appNotConfigured", "")
+	}
+	cfg, err := s.ParseWxWorkKFChannelConfig(channel.ConfigJSON)
+	if err != nil {
+		return nil, err
+	}
+	return wxwork.GetWorkCliByAgentID(cfg.AgentID)
+}
+
+// ListWxWorkApiApps 返回配置文件中可用的企业微信应用（agentId 列表），供渠道表单选择。
+func (s *channelService) ListWxWorkApiApps() []response.WxWorkApiAppResponse {
+	apps := config.Current().WxWork.NormalizedAPIApps()
+	ret := make([]response.WxWorkApiAppResponse, 0, len(apps))
+	for _, app := range apps {
+		ret = append(ret, response.WxWorkApiAppResponse{AgentID: app.AgentID})
+	}
+	return ret
 }
 
 func (s *channelService) ListWxWorkKFAccounts() ([]response.WxWorkKFAccountResponse, error) {
@@ -333,6 +359,25 @@ func (s *channelService) ParseZaloOAChannelConfig(raw string) (*dto.ZaloOAChanne
 	return cfg, nil
 }
 
+func (s *channelService) ParseDiscordChannelConfig(raw string) (*dto.DiscordChannelConfig, error) {
+	raw = strings.TrimSpace(raw)
+	cfg := &dto.DiscordChannelConfig{}
+	if raw != "" {
+		if err := json.Unmarshal([]byte(raw), cfg); err != nil {
+			return nil, err
+		}
+	}
+	cfg.GuildID = strings.TrimSpace(cfg.GuildID)
+	cfg.GuildName = strings.TrimSpace(cfg.GuildName)
+	cfg.ChannelScope = strings.TrimSpace(cfg.ChannelScope)
+	cfg.BotToken = strings.TrimSpace(cfg.BotToken)
+	cfg.ApplicationID = strings.TrimSpace(cfg.ApplicationID)
+	cfg.PublicKey = strings.TrimSpace(cfg.PublicKey)
+	cfg.WebhookSecret = strings.TrimSpace(cfg.WebhookSecret)
+	cfg.WelcomeMessage = strings.TrimSpace(cfg.WelcomeMessage)
+	return cfg, nil
+}
+
 func (s *channelService) GetUserTokenSecret(channel *models.Channel) string {
 	if channel == nil {
 		return ""
@@ -449,7 +494,7 @@ func (s *channelService) GetEnabledChannel(ctx *gin.Context) *models.Channel {
 
 func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRequest) (*models.Channel, error) {
 	channelType := strings.TrimSpace(req.ChannelType)
-	if channelType != enums.ChannelTypeWeb && channelType != enums.ChannelTypeWechatMP && channelType != enums.ChannelTypeWxWorkKF && channelType != enums.ChannelTypeTelegram && channelType != enums.ChannelTypeZaloOA {
+	if channelType != enums.ChannelTypeWeb && channelType != enums.ChannelTypeWechatMP && channelType != enums.ChannelTypeWxWorkKF && channelType != enums.ChannelTypeTelegram && channelType != enums.ChannelTypeZaloOA && channelType != enums.ChannelTypeDiscord {
 		return nil, errorsx.InvalidParamI18n("error.e0250")
 	}
 	name := strings.TrimSpace(req.Name)
@@ -464,6 +509,9 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 	}
 	if req.AIAgentRolloutPercent < 1 || req.AIAgentRolloutPercent > 100 {
 		return nil, errorsx.InvalidParam("channel ai agent rollout percent must be between 1 and 100")
+	}
+	if req.AIReplyTimeoutSeconds < 0 || req.AIReplyTimeoutSeconds > models.MaxAIReplyTimeoutSeconds {
+		return nil, errorsx.InvalidParamI18n("error.e0349")
 	}
 	aiAgent := AIAgentService.Get(req.AIAgentID)
 	if aiAgent == nil || aiAgent.Status != enums.StatusOk {
@@ -550,6 +598,12 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 		if cfg == nil || cfg.OpenKfID == "" {
 			return nil, errorsx.InvalidParamI18n("error.e0103")
 		}
+		if cfg.AgentID == "" {
+			return nil, errorsx.InvalidParamI18n("error.wxwork.agentIdRequired")
+		}
+		if _, err := wxwork.GetWorkCliByAgentID(cfg.AgentID); err != nil {
+			return nil, err
+		}
 		if channel := s.GetEnabledWxWorkKFChannelByOpenKfID(cfg.OpenKfID); channel != nil && channel.ID != id {
 			return nil, errorsx.InvalidParamI18n("error.e0069")
 		}
@@ -596,6 +650,32 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 			return nil, err
 		}
 		configJSON = string(configBytes)
+	case enums.ChannelTypeDiscord:
+		if channelID == "" {
+			channelID = strs.UUID()
+		}
+		if exists := s.Take("channel_id = ? AND status <> ? AND id <> ?", channelID, enums.StatusDeleted, id); exists != nil {
+			return nil, errorsx.InvalidParamI18n("error.e0248")
+		}
+		cfg, err := s.ParseDiscordChannelConfig(configJSON)
+		if err != nil {
+			return nil, errorsx.InvalidParam("invalid discord configuration")
+		}
+		// A channel may rely on the deployment-wide bot token instead of carrying
+		// its own, so the token is not required here the way Telegram's is.
+		if cfg.ChannelScope != "" && cfg.ChannelScope != "all" && cfg.ChannelScope != "dm_only" {
+			return nil, errorsx.InvalidParam("discord channelScope must be all or dm_only")
+		}
+		if cfg.WebhookSecret == "" {
+			if secret, err := generateUserTokenSecret(); err == nil {
+				cfg.WebhookSecret = secret
+			}
+		}
+		configBytes, err := json.Marshal(cfg)
+		if err != nil {
+			return nil, err
+		}
+		configJSON = string(configBytes)
 	}
 
 	return &models.Channel{
@@ -603,6 +683,9 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 		ChannelID:             channelID,
 		AIAgentID:             req.AIAgentID,
 		AIAgentRolloutPercent: req.AIAgentRolloutPercent,
+		AIReplyPlaceholder:    strings.TrimSpace(req.AIReplyPlaceholder),
+		AIReplyTimeoutSeconds: req.AIReplyTimeoutSeconds,
+		AIReplyTimeoutNotice:  strings.TrimSpace(req.AIReplyTimeoutNotice),
 		Name:                  name,
 		ConfigJSON:            configJSON,
 		Status:                status,

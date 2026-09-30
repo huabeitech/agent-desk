@@ -237,6 +237,31 @@ func (s *knowledgeDocumentService) BatchMoveKnowledgeDocuments(req request.Batch
 	return nil
 }
 
+// BatchBuildKnowledgeDocuments 对所选文档逐个重建索引。
+// 单篇失败不中断整体（失败状态会由 IndexDocumentByID 落库为 failed），
+// 与 BatchMoveKnowledgeDocuments 移动后重建索引的处理保持一致。
+func (s *knowledgeDocumentService) BatchBuildKnowledgeDocuments(req request.BatchBuildKnowledgeDocumentRequest, operator *dto.AuthPrincipal) error {
+	if operator == nil {
+		return errorsx.UnauthorizedI18n("error.auth.expired")
+	}
+	ids := uniquePositiveIDs(req.IDs)
+	if len(ids) == 0 {
+		return errorsx.InvalidParamI18n("error.e0331")
+	}
+	for _, id := range ids {
+		current := s.Get(id)
+		if current == nil || current.Status == enums.StatusDeleted {
+			return errorsx.InvalidParamI18n("error.e0218")
+		}
+	}
+	for _, id := range ids {
+		if err := rag.Index.IndexDocumentByID(context.Background(), id); err != nil {
+			slog.Error("failed to batch rebuild knowledge document index", "document_id", id, "error", err)
+		}
+	}
+	return nil
+}
+
 func (s *knowledgeDocumentService) BatchDeleteKnowledgeDocuments(req request.BatchDeleteKnowledgeDocumentRequest) error {
 	ids := uniquePositiveIDs(req.IDs)
 	if len(ids) == 0 {

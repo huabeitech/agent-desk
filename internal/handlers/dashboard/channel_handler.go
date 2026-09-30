@@ -65,6 +65,35 @@ func ChannelAnyWxworkKfAccounts(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, list)
 }
 
+// ChannelAnyWxworkApiApps 返回配置文件中可用的企业微信应用（agentId），供渠道表单选择。
+func ChannelAnyWxworkApiApps(ctx *gin.Context) {
+	if _, err := services.AuthService.RequirePermission(ctx, constants.PermissionChannelView); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, services.ChannelService.ListWxWorkApiApps())
+}
+
+// ChannelPostWxworkKfTest_read_messages 测试企业微信客服渠道能否读取近 3 天的消息与事件。
+// 只读操作，使用 channel.view 权限；失败原因以结构化结果返回，不抛 JsonResult 错误。
+func ChannelPostWxworkKfTest_read_messages(ctx *gin.Context) {
+	if _, err := services.AuthService.RequirePermission(ctx, constants.PermissionChannelView); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	req := request.TestWxWorkKFReadMessagesRequest{}
+	if err := params.ReadJSON(ctx, &req); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	result, err := services.ChannelService.TestWxWorkKFReadMessages(req.ID)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, result)
+}
+
 func ChannelAnyWxworkOutboxFailedList(ctx *gin.Context) {
 	if _, err := services.AuthService.RequirePermission(ctx, constants.PermissionWxWorkOutboxView); err != nil {
 		httpx.WriteJSON(ctx, err)

@@ -37,24 +37,37 @@ func (s *replyCommitService) SendAIReply(input replyCommitInput) (*models.Messag
 	if err != nil {
 		return nil, err
 	}
-	replyMessage, err := svc.MessageService.SendAIMessageWithRequestIDAndWorkflowRunID(
-		input.Conversation.ID,
-		input.AIAgent.ID,
-		fmt.Sprintf("%s_%d", strings.TrimSpace(input.ClientPrefix), input.Message.ID),
-		enums.IMMessageTypeText,
+	// 优先原地替换 web 渠道的占位消息；不支持替换时回退为新消息
+	replyMessage := svc.MessageService.TryReplaceAIReplyPlaceholder(
+		&input.Conversation,
+		input.Message.ID,
 		replyText,
-		"",
-		s.buildAIPrincipal(input.AIAgent),
-		input.Message.RequestID,
 		input.WorkflowRunID,
+		input.AIAgent,
 	)
-	if err != nil || !input.IncrementRound {
-		return replyMessage, err
+	if replyMessage == nil {
+		replyMessage, err = svc.MessageService.SendAIMessageWithRequestIDAndWorkflowRunID(
+			input.Conversation.ID,
+			input.AIAgent.ID,
+			fmt.Sprintf("%s_%d", strings.TrimSpace(input.ClientPrefix), input.Message.ID),
+			enums.IMMessageTypeText,
+			replyText,
+			"",
+			s.buildAIPrincipal(input.AIAgent),
+			input.Message.RequestID,
+			input.WorkflowRunID,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !input.IncrementRound {
+		return replyMessage, nil
 	}
 	if err := s.IncrementAIReplyRounds(input.Conversation.ID, input.Conversation.AIReplyRounds+1, input.AIAgent.Name); err != nil {
 		return nil, err
 	}
-	return replyMessage, err
+	return replyMessage, nil
 }
 
 func (s *replyCommitService) CommitAIReply(input replyCommitInput) (*models.Message, error) {
