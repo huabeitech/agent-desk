@@ -2,11 +2,11 @@
 
 import { useCallback } from "react"
 
-import { SupportEmptyState } from "@/app/(support)/support/_components/support-ui"
+import { EmptyState } from "@/components/empty-state"
 import { PostCard } from "@/app/(support)/support/community/posts/_components/post-ui"
 import { LoadMore } from "@/components/load-more"
 import { useI18n } from "@/i18n/provider"
-import { fetchPosts, type Post } from "@/lib/api/support-community"
+import { fetchPosts, type PostListItem } from "@/lib/api/support-community"
 
 type CommunityPostListProps = {
   emptyText: string
@@ -31,7 +31,7 @@ export function CommunityPostList({
   }, [limit, query])
 
   return (
-    <LoadMore<Post>
+    <LoadMore<PostListItem>
       resetKey={resetKey}
       initialHasMore
       initialLoad
@@ -42,8 +42,12 @@ export function CommunityPostList({
         error: t("supportPublic.empty.postsFailed"),
       }}
       loadPage={loadPosts}
-      renderItems={(items) => items.map((item) => <PostCard key={item.id} item={item} compact />)}
-      renderEmpty={() => <SupportEmptyState text={emptyText} />}
+      renderItems={(items) => (
+        <ul className="divide-y divide-border">
+          {items.map((item) => <PostCard key={item.id} item={item} />)}
+        </ul>
+      )}
+      renderEmpty={() => <EmptyState text={emptyText} />}
     />
   )
 }

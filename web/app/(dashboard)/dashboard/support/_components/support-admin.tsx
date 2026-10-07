@@ -24,7 +24,7 @@ import {
   saveCommunityCategoryAdmin,
   updateCommunityCategorySortAdmin,
   type AdminCategory,
-  type AdminPost,
+  type AdminPostListItem,
   type AdminPostDetail,
 } from "@/lib/api/admin"
 import { useI18n } from "@/i18n/provider"
@@ -113,7 +113,7 @@ export function DashboardSupportCommunityCategoryAdmin() {
 export function DashboardSupportCommunityAdmin() {
   const t = useI18n()
   const [categories, setCategories] = useState<AdminCategory[]>([])
-  const [posts, setPosts] = useState<AdminPost[]>([])
+  const [posts, setPosts] = useState<AdminPostListItem[]>([])
   const [categoryId, setCategoryId] = useState<number | "all">("all")
   const [status, setStatus] = useState("all")
   const [detail, setDetail] = useState<AdminPostDetail | null>(null)
@@ -177,7 +177,7 @@ export function DashboardSupportCommunityAdmin() {
         {posts.map((post) => (
           <button key={post.id} type="button" className="flex w-full items-center gap-4 border-b px-4 py-3 text-left last:border-b-0 hover:bg-muted/50" onClick={() => void openPost(post.id)}>
             <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted"><MessageSquareTextIcon className="size-4 text-muted-foreground" /></span>
-            <span className="min-w-0 flex-1"><span className="block truncate font-medium">{post.title}</span><span className="mt-1 block text-sm text-muted-foreground">{post.userName || "用户"} · {post.categoryName || "未分类"} · {formatDateTime(post.createdAt)}</span></span>
+            <span className="min-w-0 flex-1"><span className="block truncate font-medium">{post.title}</span><span className="mt-1 block text-sm text-muted-foreground">{post.user.displayName || "用户"} · {post.categoryName || "未分类"} · {formatDateTime(post.createdAt)}</span></span>
             <span className="hidden text-sm text-muted-foreground sm:block">{post.commentCount} 个评论</span>
             <Badge variant={post.status === "resolved" ? "default" : "outline"}>{postStatusLabel(post.status)}</Badge>
           </button>
@@ -186,13 +186,13 @@ export function DashboardSupportCommunityAdmin() {
         {loading ? <div className="py-16 text-center text-sm text-muted-foreground">正在加载帖子...</div> : null}
       </div>
 
-      <ProjectDialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null) }} title={detail?.post.title ?? "帖子处理"} description={detail ? `${detail.post.userName || "用户"} · ${detail.post.categoryName || "未分类"} · ${formatDateTime(detail.post.createdAt)}` : undefined} size="xl" allowFullscreen>
+      <ProjectDialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null) }} title={detail?.post.title ?? "帖子处理"} description={detail ? `${detail.post.user.displayName || "用户"} · ${detail.post.categoryName || "未分类"} · ${formatDateTime(detail.post.createdAt)}` : undefined} size="xl" allowFullscreen>
         {detail ? (
           <div className="grid gap-5">
             <div className="flex flex-wrap items-center gap-2"><Badge variant={detail.post.status === "resolved" ? "default" : "outline"}>{postStatusLabel(detail.post.status)}</Badge><span className="text-sm text-muted-foreground">{detail.post.reactionCount} 赞 · {detail.post.viewCount} 浏览</span></div>
             <p className="whitespace-pre-wrap text-sm leading-7">{detail.post.content}</p>
             <div className="flex flex-wrap gap-2 border-y py-3"><Button variant="outline" onClick={() => void moderate("normal")}>恢复正常</Button><Button variant="outline" onClick={() => void moderate("closed")}>关闭帖子</Button><Button variant="destructive" onClick={() => void moderate("hidden")}>隐藏帖子</Button></div>
-            <Card><CardHeader><CardTitle className="text-base">评论（{detail.comments.length}）</CardTitle></CardHeader><CardContent className="grid gap-3">{detail.comments.map((item) => <div key={item.id} className="rounded-md border p-3"><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">{item.authorName || item.authorType}</span>{item.isAccepted ? <Badge>已采纳</Badge> : <Button size="sm" variant="outline" onClick={() => void acceptCommunityCommentAdmin(detail.post.id, item.id).then(refreshDetail)}>设为采纳</Button>}</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{item.content}</p></div>)}</CardContent></Card>
+            <Card><CardHeader><CardTitle className="text-base">评论（{detail.comments.length}）</CardTitle></CardHeader><CardContent className="grid gap-3">{detail.comments.map((item) => <div key={item.id} className="rounded-md border p-3"><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">{item.user.displayName || item.authorType}</span>{item.isAccepted ? <Badge>已采纳</Badge> : <Button size="sm" variant="outline" onClick={() => void acceptCommunityCommentAdmin(detail.post.id, item.id).then(refreshDetail)}>设为采纳</Button>}</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{item.content}</p></div>)}</CardContent></Card>
             <div className="grid gap-2"><Textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={5} placeholder="输入客服评论" /><div className="flex justify-end"><Button onClick={() => void reply()} disabled={!comment.trim()}>发布评论</Button></div></div>
           </div>
         ) : null}

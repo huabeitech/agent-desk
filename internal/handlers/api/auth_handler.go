@@ -211,6 +211,42 @@ func UploadProfileAvatar(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, builders.BuildAsset(item))
 }
 
+func AvatarUserGet(ctx *gin.Context) {
+	userID, ok := httpx.GetPathInt64(ctx, "userId")
+	if !ok {
+		return
+	}
+	user := services.UserService.Get(userID)
+	if user == nil {
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	redirectAvatarAsset(ctx, user.UserAvatarAssetID())
+}
+
+func AvatarAgentGet(ctx *gin.Context) {
+	profileID, ok := httpx.GetPathInt64(ctx, "agentProfileId")
+	if !ok {
+		return
+	}
+	profile := services.AgentProfileService.Get(profileID)
+	if profile == nil {
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	redirectAvatarAsset(ctx, profile.AgentAvatarAssetID())
+}
+
+func redirectAvatarAsset(ctx *gin.Context, assetID string) {
+	accessURL, err := services.AssetService.GetSignedURLByAssetID(assetID)
+	if err != nil || accessURL == "" {
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	ctx.Header("Cache-Control", "private, no-store")
+	ctx.Redirect(http.StatusFound, accessURL)
+}
+
 func wxWorkErrorMessage(message string) string {
 	return loginErrorMessage(message)
 }

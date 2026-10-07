@@ -274,6 +274,21 @@ func TestCommentDiscussionWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create post: %v", err)
 	}
+	if SupportService.HasReaction(enums.ReactionTargetPost, post.ID, enums.ReactionTypeLike, commenter) {
+		t.Fatal("new post should not be liked by the commenter")
+	}
+	if err := SupportService.ToggleReaction(enums.ReactionTargetPost, post.ID, enums.ReactionTypeLike, commenter); err != nil {
+		t.Fatalf("like post: %v", err)
+	}
+	if !SupportService.HasReaction(enums.ReactionTargetPost, post.ID, enums.ReactionTypeLike, commenter) {
+		t.Fatal("post should be liked by the commenter")
+	}
+	if err := SupportService.ToggleReaction(enums.ReactionTargetPost, post.ID, enums.ReactionTypeLike, commenter); err != nil {
+		t.Fatalf("unlike post: %v", err)
+	}
+	if SupportService.HasReaction(enums.ReactionTargetPost, post.ID, enums.ReactionTypeLike, commenter) {
+		t.Fatal("post should not be liked after toggling again")
+	}
 	comment, err := SupportService.CreateCustomerComment(request.CreateCommentRequest{
 		PostID:  post.ID,
 		Content: "top level comment",

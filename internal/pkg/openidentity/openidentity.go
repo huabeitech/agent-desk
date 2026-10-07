@@ -1,6 +1,7 @@
 package openidentity
 
 import (
+	"agent-desk/internal/pkg/config"
 	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/pkg/errorsx"
 	"errors"
@@ -22,19 +23,32 @@ type ExternalUser struct {
 }
 
 type UserTokenClaims struct {
-	UserID string `json:"userId"`
-	Name   string `json:"name"`
+	TokenType string `json:"typ,omitempty"`
+	UserID    string `json:"userId"`
+	Name      string `json:"name"`
 	jwt.RegisteredClaims
 }
 
-func GetExternalUser(ctx *gin.Context, secret string) (*ExternalUser, error) {
+const SupportUserTokenType = "support_user"
+
+func GetExternalUser(ctx *gin.Context, externalUserSecret string) (*ExternalUser, error) {
 	if userToken := getUserToken(ctx); strs.IsNotBlank(userToken) {
-		claims, err := verifyUserToken(userToken, secret)
+		supportUserSecret := config.Current().CustomerSession.Secret
+		if strs.IsNotBlank(supportUserSecret) {
+			if claims, err := verifySupportUserToken(userToken, supportUserSecret); err == nil {
+				return &ExternalUser{
+					ExternalSource: enums.ExternalSourceUser,
+					ExternalID:     claims.UserID,
+					ExternalName:   claims.Name,
+				}, nil
+			}
+		}
+		claims, err := verifyUserToken(userToken, externalUserSecret)
 		if err != nil {
 			return nil, err
 		}
 		return &ExternalUser{
-			ExternalSource: enums.ExternalSourceUser,
+			ExternalSource: enums.ExternalSourceExternal,
 			ExternalID:     claims.UserID,
 			ExternalName:   claims.Name,
 		}, nil
@@ -81,6 +95,17 @@ func verifyUserToken(userToken, secret string) (*UserTokenClaims, error) {
 		return nil, errorsx.UnauthorizedI18n("error.e0264")
 	}
 
+	return claims, nil
+}
+
+func verifySupportUserToken(userToken, secret string) (*UserTokenClaims, error) {
+	claims, err := verifyUserToken(userToken, secret)
+	if err != nil {
+		return nil, err
+	}
+	if claims.TokenType != SupportUserTokenType {
+		return nil, errorsx.UnauthorizedI18n("error.e0265")
+	}
 	return claims, nil
 }
 

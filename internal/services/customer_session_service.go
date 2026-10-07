@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ const (
 	customerSessionTokenType = "customer_session"
 	customerSessionHeader    = "X-Customer-Session-Token"
 	customerSessionExpHeader = "X-Customer-Session-Expires-At"
+	supportUserTokenTTL      = 10 * time.Minute
 )
 
 var CustomerSessionService = newCustomerSessionService()
@@ -83,6 +85,39 @@ func (s *customerSessionService) Exchange(channel *models.Channel, externalUser 
 			ID:   customer.ID,
 			Name: strings.TrimSpace(customer.Name),
 		},
+	}, nil
+}
+
+func (s *customerSessionService) SignSupportUserToken(channel *models.Channel, user *models.User) (*response.SupportAICustomerServiceUserTokenResponse, error) {
+	if channel == nil || channel.Status != enums.StatusOk || channel.ChannelType != enums.ChannelTypeWeb {
+		return nil, errorsx.InvalidParamI18n("error.e0209")
+	}
+	if user == nil || user.Status != enums.StatusOk {
+		return nil, errorsx.UnauthorizedI18n("error.e0256")
+	}
+	secret := strings.TrimSpace(config.Current().CustomerSession.Secret)
+	if strings.TrimSpace(secret) == "" {
+		return nil, errorsx.BusinessErrorI18n(1, "error.customerSession.secretMissing")
+	}
+	now := time.Now()
+	expiresAt := now.Add(supportUserTokenTTL)
+	name := strings.TrimSpace(user.Nickname)
+	if name == "" {
+		name = strings.TrimSpace(user.Username)
+	}
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"typ":    openidentity.SupportUserTokenType,
+		"userId": strconv.FormatInt(user.ID, 10),
+		"name":   name,
+		"iat":    now.Unix(),
+		"exp":    expiresAt.Unix(),
+	}).SignedString([]byte(secret))
+	if err != nil {
+		return nil, err
+	}
+	return &response.SupportAICustomerServiceUserTokenResponse{
+		UserToken: token,
+		ExpiresAt: expiresAt.Format(time.DateTime),
 	}, nil
 }
 
@@ -206,6 +241,8 @@ func (s *customerSessionService) externalUserFromClaims(claims *customerSessionC
 	switch parts[0] {
 	case "user":
 		source = enums.ExternalSourceUser
+	case "external":
+		source = enums.ExternalSourceExternal
 	case "guest":
 		source = enums.ExternalSourceGuest
 	default:
@@ -235,6 +272,8 @@ func (s *customerSessionService) identityKey(externalUser openidentity.ExternalU
 	switch externalUser.ExternalSource {
 	case enums.ExternalSourceUser:
 		return "user:" + strings.TrimSpace(externalUser.ExternalID)
+	case enums.ExternalSourceExternal:
+		return "external:" + strings.TrimSpace(externalUser.ExternalID)
 	default:
 		return "guest:" + strings.TrimSpace(externalUser.ExternalID)
 	}

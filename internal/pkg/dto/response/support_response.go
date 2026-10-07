@@ -27,11 +27,23 @@ type SupportNavigationMenuItemResponse struct {
 }
 
 type PublicSupportConfigResponse struct {
-	NavigationMenu []SupportNavigationMenuItemResponse `json:"navigationMenu"`
+	NavigationMenu    []SupportNavigationMenuItemResponse    `json:"navigationMenu"`
+	AICustomerService SupportAICustomerServiceConfigResponse `json:"aiCustomerService"`
 }
 
 type DashboardSupportConfigResponse struct {
-	NavigationMenu []SupportNavigationMenuItemResponse `json:"navigationMenu"`
+	NavigationMenu    []SupportNavigationMenuItemResponse    `json:"navigationMenu"`
+	AICustomerService SupportAICustomerServiceConfigResponse `json:"aiCustomerService"`
+}
+
+type SupportAICustomerServiceConfigResponse struct {
+	Enabled   bool   `json:"enabled"`
+	ChannelID string `json:"channelId"`
+}
+
+type SupportAICustomerServiceUserTokenResponse struct {
+	UserToken string `json:"userToken"`
+	ExpiresAt string `json:"expiresAt"`
 }
 
 type DocPageResponse struct {
@@ -79,16 +91,48 @@ type CategoryResponse struct {
 	UpdatedAt   string       `json:"updatedAt"`
 }
 
+// SimpleUserInfo is the public, reusable user shape embedded in community posts
+// and comments. It deliberately excludes account contact and authentication data.
+type SimpleUserInfo struct {
+	ID          int64          `json:"id"`
+	Username    string         `json:"username"`
+	Nickname    string         `json:"nickname"`
+	DisplayName string         `json:"displayName"`
+	Avatar      string         `json:"avatar"`
+	UserType    enums.UserType `json:"userType"`
+}
+
 type PostResponse struct {
 	ID                  int64                   `json:"id"`
 	CategoryID          int64                   `json:"categoryId"`
 	CategoryName        string                  `json:"categoryName"`
-	UserID              int64                   `json:"userId"`
-	UserName            string                  `json:"userName"`
-	UserType            enums.UserType          `json:"userType"`
+	User                SimpleUserInfo          `json:"user"`
 	Title               string                  `json:"title"`
 	ContentType         string                  `json:"contentType"`
 	Content             string                  `json:"content"`
+	Tags                []string                `json:"tags"`
+	Status              enums.PostStatus        `json:"status"`
+	AcceptedCommentID   int64                   `json:"acceptedCommentId"`
+	CommentCount        int64                   `json:"commentCount"`
+	ReactionCount       int64                   `json:"reactionCount"`
+	IsLiked             bool                    `json:"isLiked"`
+	ViewCount           int64                   `json:"viewCount"`
+	LastCommentedAt     string                  `json:"lastCommentedAt"`
+	LastCommentUserType enums.CommentAuthorType `json:"lastCommentUserType"`
+	LastCommentUserID   int64                   `json:"lastCommentUserId"`
+	CreatedAt           string                  `json:"createdAt"`
+	UpdatedAt           string                  `json:"updatedAt"`
+}
+
+// PostListItemResponse keeps community list payloads lightweight. Full content
+// remains available exclusively from the post detail endpoint.
+type PostListItemResponse struct {
+	ID                  int64                   `json:"id"`
+	CategoryID          int64                   `json:"categoryId"`
+	CategoryName        string                  `json:"categoryName"`
+	User                SimpleUserInfo          `json:"user"`
+	Title               string                  `json:"title"`
+	Summary             string                  `json:"summary"`
 	Tags                []string                `json:"tags"`
 	Status              enums.PostStatus        `json:"status"`
 	AcceptedCommentID   int64                   `json:"acceptedCommentId"`
@@ -107,8 +151,7 @@ type CommentResponse struct {
 	PostID        int64                   `json:"postId"`
 	ParentID      int64                   `json:"parentId"`
 	AuthorType    enums.CommentAuthorType `json:"authorType"`
-	AuthorID      int64                   `json:"authorId"`
-	AuthorName    string                  `json:"authorName"`
+	User          SimpleUserInfo          `json:"user"`
 	ContentType   string                  `json:"contentType"`
 	Content       string                  `json:"content"`
 	Status        enums.CommentStatus     `json:"status"`

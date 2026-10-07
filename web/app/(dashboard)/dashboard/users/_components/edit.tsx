@@ -63,7 +63,7 @@ function buildForm(item: AdminUser | null): EditForm {
 
   return {
     nickname: item.nickname || "",
-    avatar: item.avatar || "",
+    avatar: item.avatarAssetId || item.avatar || "",
     mobile: item.mobile || "",
     email: item.email || "",
   }
@@ -225,6 +225,7 @@ function UserEditDrawerBody({
                   render={({ field }) => (
                     <ImageInput
                       value={field.value}
+                      previewValue={item?.avatar}
                       onChange={field.onChange}
                       disabled={saving || loading}
                       prefix="avatar"

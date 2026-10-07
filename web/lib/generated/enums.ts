@@ -79,11 +79,13 @@ export enum ExternalSource {
   User = "user",
   Telegram = "telegram",
   ZaloOA = "zalo_oa",
+  External = "external",
 }
 export const ExternalSourceLabels: Record<ExternalSource, string> = {
   [ExternalSource.Guest]: "访客",
   [ExternalSource.WxWorkKF]: "企业微信客服",
-  [ExternalSource.User]: "用户",
+  [ExternalSource.User]: "站内用户",
+  [ExternalSource.External]: "外部用户",
   [ExternalSource.Telegram]: "Telegram",
   [ExternalSource.ZaloOA]: "Zalo OA",
 }

@@ -111,6 +111,17 @@ func (r *userRepository) FindByIds(db *gorm.DB, ids []int64) []models.User {
 	return list
 }
 
+// FindSimpleInfoByIDs selects exactly the fields required by public community
+// user cards, instead of loading account contact or authentication fields.
+func (r *userRepository) FindSimpleInfoByIDs(db *gorm.DB, ids []int64) []models.User {
+	if len(ids) == 0 {
+		return []models.User{}
+	}
+	var list []models.User
+	db.Select("id", "username", "nickname", "avatar", "user_type").Where("id IN ?", ids).Find(&list)
+	return list
+}
+
 func (r *userRepository) GetByUsername(db *gorm.DB, username string) *models.User {
 	username = strings.TrimSpace(username)
 	if username == "" {

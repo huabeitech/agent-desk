@@ -126,3 +126,8 @@ type SupportNavigationMenuItemRequest struct {
 	Visible         *bool                              `json:"visible"`
 	Children        []SupportNavigationMenuItemRequest `json:"children"`
 }
+
+type SupportAICustomerServiceConfigRequest struct {
+	Enabled   bool   `json:"enabled"`
+	ChannelID string `json:"channelId"`
+}

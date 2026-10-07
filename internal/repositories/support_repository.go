@@ -87,6 +87,15 @@ func (r *supportCategoryRepository) Find(db *gorm.DB, cnd *sqls.Cnd) (list []mod
 	return
 }
 
+func (r *supportCategoryRepository) FindByIDs(db *gorm.DB, ids []int64) []models.Category {
+	if len(ids) == 0 {
+		return []models.Category{}
+	}
+	var list []models.Category
+	db.Where("id IN ?", ids).Find(&list)
+	return list
+}
+
 func (r *supportCategoryRepository) FindPageByCnd(db *gorm.DB, cnd *sqls.Cnd) (list []models.Category, paging *sqls.Paging) {
 	cnd.Find(db, &list)
 	paging = &sqls.Paging{Page: cnd.Paging.Page, Limit: cnd.Paging.Limit, Total: cnd.Count(db, &models.Category{})}

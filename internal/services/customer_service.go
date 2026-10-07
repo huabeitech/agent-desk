@@ -4,6 +4,9 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"log/slog"
+	"strconv"
+	"strings"
+	"time"
 
 	"agent-desk/internal/models"
 	"agent-desk/internal/pkg/dto"
@@ -13,8 +16,6 @@ import (
 	"agent-desk/internal/pkg/openidentity"
 	"agent-desk/internal/pkg/utils"
 	"agent-desk/internal/repositories"
-	"strings"
-	"time"
 
 	"agent-desk/internal/pkg/httpx/params"
 
@@ -124,10 +125,17 @@ func (s *customerService) EnsureExternalCustomer(ctx *sqls.TxContext, externalUs
 		return 0, errorsx.UnauthorizedI18n("error.e0149")
 	}
 	now := time.Now()
+	localUserID, localUserEmail := supportUserProfileFromExternalUser(externalUser)
 	if identity := repositories.CustomerIdentityRepository.GetBy(ctx.Tx, externalSource, externalID); identity != nil {
 		updates := map[string]any{
 			"last_active_at": now,
 			"updated_at":     now,
+		}
+		if localUserID > 0 {
+			updates["user_id"] = localUserID
+		}
+		if localUserEmail != "" {
+			updates["primary_email"] = localUserEmail
 		}
 		if strs.IsNotBlank(externalUser.ExternalName) {
 			updates["name"] = externalUser.ExternalName
@@ -151,8 +159,10 @@ func (s *customerService) EnsureExternalCustomer(ctx *sqls.TxContext, externalUs
 	}
 
 	customer := &models.Customer{
+		UserID:       localUserID,
 		Name:         buildExternalCustomerName(externalUser),
 		LastActiveAt: &now,
+		PrimaryEmail: localUserEmail,
 		Status:       enums.StatusOk,
 		AuditFields:  utils.BuildAuditFields(nil),
 	}
@@ -169,6 +179,25 @@ func (s *customerService) EnsureExternalCustomer(ctx *sqls.TxContext, externalUs
 		return 0, err
 	}
 	return customer.ID, nil
+}
+
+func supportUserProfileFromExternalUser(externalUser openidentity.ExternalUser) (int64, string) {
+	if externalUser.ExternalSource != enums.ExternalSourceUser {
+		return 0, ""
+	}
+	userID, err := strconv.ParseInt(strings.TrimSpace(externalUser.ExternalID), 10, 64)
+	if err != nil || userID <= 0 {
+		return 0, ""
+	}
+	user := UserService.Get(userID)
+	if user == nil || user.Status != enums.StatusOk {
+		return 0, ""
+	}
+	email := ""
+	if user.Email != nil {
+		email = strings.TrimSpace(*user.Email)
+	}
+	return user.ID, email
 }
 
 func buildExternalCustomerName(externalUser openidentity.ExternalUser) string {

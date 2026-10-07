@@ -34,7 +34,7 @@ export function SupportProfileEditPage() {
   useEffect(() => {
     if (!session) return
     setNickname(session.user.nickname || session.user.username)
-    setAvatar(session.user.avatar || "")
+    setAvatar(session.user.avatarAssetId || session.user.avatar || "")
     setEmail(session.user.email || "")
   }, [session])
 
@@ -73,7 +73,7 @@ export function SupportProfileEditPage() {
           </div>
           <div className="grid gap-5 p-5 sm:p-6">
             <SupportFormField label={t("supportPublic.profile.avatar")}>
-              <ImageInput value={avatar} onChange={setAvatar} upload={uploadProfileAvatar} placeholder={t("supportPublic.profile.avatarPlaceholder")} />
+              <ImageInput value={avatar} previewValue={session?.user.avatar} onChange={setAvatar} upload={uploadProfileAvatar} placeholder={t("supportPublic.profile.avatarPlaceholder")} />
             </SupportFormField>
             <SupportFormField label={t("supportPublic.profile.nickname")}>
               <Input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder={t("supportPublic.profile.nicknamePlaceholder")} />

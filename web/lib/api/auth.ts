@@ -13,6 +13,7 @@ export type UpdateProfileRequest = {
 }
 
 export type ProfileAvatarAsset = {
+  assetId: string
   url: string
 }
 

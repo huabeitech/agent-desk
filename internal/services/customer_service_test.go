@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ func TestEnsureExternalCustomerUpdatesNameFromExternalIdentity(t *testing.T) {
 	var firstID int64
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		id, err := services.CustomerService.EnsureExternalCustomer(ctx, openidentity.ExternalUser{
-			ExternalSource: enums.ExternalSourceUser,
+			ExternalSource: enums.ExternalSourceExternal,
 			ExternalID:     "user-1",
 			ExternalName:   "张三",
 		})
@@ -44,7 +45,7 @@ func TestEnsureExternalCustomerUpdatesNameFromExternalIdentity(t *testing.T) {
 	var secondID int64
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		id, err := services.CustomerService.EnsureExternalCustomer(ctx, openidentity.ExternalUser{
-			ExternalSource: enums.ExternalSourceUser,
+			ExternalSource: enums.ExternalSourceExternal,
 			ExternalID:     "user-1",
 			ExternalName:   "李四",
 		})
@@ -74,6 +75,47 @@ func TestEnsureExternalCustomerUpdatesNameFromExternalIdentity(t *testing.T) {
 	}
 }
 
+func TestEnsureExternalCustomerLinksSupportUserProfile(t *testing.T) {
+	db := setupCustomerServiceTestDB(t)
+	email := "support-user@example.com"
+	user := models.User{
+		Username: "support-user",
+		Nickname: "支持中心用户",
+		Email:    &email,
+		Status:   enums.StatusOk,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	var customerID int64
+	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		id, err := services.CustomerService.EnsureExternalCustomer(ctx, openidentity.ExternalUser{
+			ExternalSource: enums.ExternalSourceUser,
+			ExternalID:     strconv.FormatInt(user.ID, 10),
+			ExternalName:   "支持中心用户",
+		})
+		customerID = id
+		return err
+	}); err != nil {
+		t.Fatalf("EnsureExternalCustomer() error = %v", err)
+	}
+
+	customer := services.CustomerService.Get(customerID)
+	if customer == nil {
+		t.Fatal("customer not found")
+	}
+	if customer.UserID != user.ID {
+		t.Fatalf("customer.UserID = %d, want %d", customer.UserID, user.ID)
+	}
+	if customer.Name != "支持中心用户" {
+		t.Fatalf("customer.Name = %q", customer.Name)
+	}
+	if customer.PrimaryEmail != email {
+		t.Fatalf("customer.PrimaryEmail = %q, want %q", customer.PrimaryEmail, email)
+	}
+}
+
 func setupCustomerServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -92,7 +134,7 @@ func setupCustomerServiceTestDB(t *testing.T) *gorm.DB {
 			_ = sqlDB.Close()
 		}
 	})
-	if err := db.AutoMigrate(&models.Customer{}, &models.CustomerIdentity{}, &models.Conversation{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Customer{}, &models.CustomerIdentity{}, &models.Conversation{}); err != nil {
 		t.Fatalf("auto migrate error = %v", err)
 	}
 	sqls.SetDB(db)

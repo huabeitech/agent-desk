@@ -2,11 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
 
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { useI18n } from "@/i18n/provider"
 import { articleHeadingId, markdownHeadingText } from "@/lib/support-article"
 import { cn } from "@/lib/utils"
 
-export function PublicArticleToc({ articleId, content, contentType = "markdown" }: { articleId: string; content: string; contentType?: string }) {
+export function PublicArticleToc({
+  articleId,
+  content,
+  contentType = "markdown",
+  stickyOffset = "header",
+}: {
+  articleId: string
+  content: string
+  contentType?: string
+  stickyOffset?: "header" | "content"
+}) {
   const t = useI18n()
   const tocRef = useRef<HTMLElement>(null)
   const headings = useMemo(() => getArticleTocHeadings(content, contentType), [content, contentType])
@@ -66,7 +77,7 @@ export function PublicArticleToc({ articleId, content, contentType = "markdown" 
   }
 
   useEffect(() => {
-    const container = tocRef.current
+    const container = tocRef.current?.querySelector<HTMLElement>("[data-slot='scroll-area-viewport']")
     if (!container || !activeId) return
     const activeLink = Array.from(container.querySelectorAll<HTMLAnchorElement>("[data-toc-id]"))
       .find((link) => link.dataset.tocId === activeId)
@@ -82,26 +93,37 @@ export function PublicArticleToc({ articleId, content, contentType = "markdown" 
   }, [activeId])
 
   return (
-    <aside ref={tocRef} className="sticky top-14 max-h-[calc(100svh-3.5rem)] overflow-y-auto px-5 py-12">
-      <div>
-        <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("supportPublic.help.toc")}</div>
-        {headings.length ? headings.map((item, index) => (
-          <a
-            key={`${item.title}-${index}`}
-            href={`#${item.id}`}
-            data-toc-id={item.id}
-            aria-current={activeId === item.id ? "location" : undefined}
-            onClick={(event) => scrollToHeading(event, item.id)}
-            className={cn(
-              "block border-l py-1.5 pl-3 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
-              item.level === 3 && "pl-6",
-              activeId === item.id && "border-primary bg-muted/50 font-medium text-foreground"
-            )}
-          >
-            <span className="line-clamp-3">{item.title}</span>
-          </a>
-        )) : <div className="text-sm text-muted-foreground">{t("supportPublic.help.noToc")}</div>}
-      </div>
+    <aside ref={tocRef} className={cn("sticky", stickyOffset === "content" ? "top-[5.5rem]" : "top-14")}>
+      <ScrollArea
+        className={cn(
+          "group h-fit [&>[data-slot=scroll-area-viewport]]:h-fit",
+          stickyOffset === "content"
+            ? "[&>[data-slot=scroll-area-viewport]]:max-h-[calc(100svh-5.625rem)]"
+            : "[&>[data-slot=scroll-area-viewport]]:max-h-[calc(100svh-3.5rem)]"
+        )}
+        scrollbarClassName="opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        <div className="p-5">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("supportPublic.help.toc")}</div>
+          {headings.length ? headings.map((item, index) => (
+            <a
+              key={`${item.title}-${index}`}
+              href={`#${item.id}`}
+              data-toc-id={item.id}
+              aria-current={activeId === item.id ? "location" : undefined}
+              onClick={(event) => scrollToHeading(event, item.id)}
+              className={cn(
+                "block border-l py-1.5 pl-3 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground",
+                item.level === 3 && "pl-6",
+                activeId === item.id && "border-primary bg-muted/50 font-medium text-foreground"
+              )}
+            >
+              <span className="line-clamp-3">{item.title}</span>
+            </a>
+          )) : <div className="text-sm text-muted-foreground">{t("supportPublic.help.noToc")}</div>}
+        </div>
+        <ScrollBar keepMounted className="pointer-events-none opacity-0" />
+      </ScrollArea>
     </aside>
   )
 }

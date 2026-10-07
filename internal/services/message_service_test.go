@@ -100,7 +100,7 @@ func createWelcomeTestAIAgent(t *testing.T, db *gorm.DB, welcomeMessage string) 
 
 func welcomeTestExternalUser(id string) openidentity.ExternalUser {
 	return openidentity.ExternalUser{
-		ExternalSource: enums.ExternalSourceUser,
+		ExternalSource: enums.ExternalSourceExternal,
 		ExternalID:     id,
 		ExternalName:   "访客" + id,
 	}

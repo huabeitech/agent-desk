@@ -108,6 +108,7 @@ func registerApiMessageRoutes(group *gin.RouterGroup, limits publicRateLimits) {
 
 func registerApiSupportRoutes(group *gin.RouterGroup, limits publicRateLimits) {
 	group.GET("/config", api.SupportConfigGetConfig)
+	group.GET("/ai-customer-service/user-token", api.SupportConfigGetAICustomerServiceUserToken)
 	group.POST("/auth/register", middleware.RateLimit(limits.supportRegister), api.SupportAuthPostRegister)
 	group.GET("/me", api.SupportGetMe)
 	group.Any("/doc-page/list", api.DocPageAnyList)

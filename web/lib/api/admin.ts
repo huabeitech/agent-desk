@@ -25,6 +25,7 @@ export type AdminUser = {
   username: string
   nickname: string
   avatar: string
+  avatarAssetId?: string
   mobile?: string
   email?: string
   userType: string
@@ -781,6 +782,7 @@ export type AdminAgentProfile = {
   agentCode: string
   displayName: string
   avatar: string
+  avatarAssetId?: string
   serviceStatus: number
   maxConcurrentCount: number
   priorityLevel: number
@@ -2342,10 +2344,9 @@ export type AdminPost = {
   id: number
   categoryId: number
   categoryName: string
-  userId: number
-  userName: string
-  userType: string
+  user: SimpleUserInfo
   title: string
+  contentType: string
   content: string
   tags: string[]
   status: string
@@ -2357,11 +2358,15 @@ export type AdminPost = {
   updatedAt: string
 }
 
+export type AdminPostListItem = Omit<AdminPost, "contentType" | "content"> & {
+  summary: string
+}
+
 export type AdminComment = {
   id: number
   postId: number
   authorType: string
-  authorName: string
+  user: SimpleUserInfo
   content: string
   status: string
   reactionCount: number
@@ -2372,6 +2377,15 @@ export type AdminComment = {
 export type AdminPostDetail = {
   post: AdminPost
   comments: AdminComment[]
+}
+
+export type SimpleUserInfo = {
+  id: number
+  username: string
+  nickname: string
+  displayName: string
+  avatar: string
+  userType: string
 }
 
 export type SupportNavigationMenuItem = {
@@ -2386,6 +2400,10 @@ export type SupportNavigationMenuItem = {
 
 export type DashboardSupportConfig = {
   navigationMenu: SupportNavigationMenuItem[]
+  aiCustomerService: {
+    enabled: boolean
+    channelId: string
+  }
 }
 
 export function fetchSupportConfigAdmin() {
@@ -2405,6 +2423,12 @@ export function saveSupportConfigAdmin(payload: Partial<DashboardSupportConfig>)
         visible,
         children,
       })),
+      aiCustomerService: payload.aiCustomerService
+        ? {
+            enabled: payload.aiCustomerService.enabled,
+            channelId: payload.aiCustomerService.channelId,
+          }
+        : undefined,
     }),
   })
 }
@@ -2490,7 +2514,7 @@ export function updateCommunityCategorySortAdmin(ids: number[]) {
 }
 
 export function fetchCommunityPostsAdmin(query?: Record<string, string | number | undefined>) {
-  return request<PageResult<AdminPost>>(`/api/dashboard/support-community/posts/list${toQueryString(query)}`)
+  return request<PageResult<AdminPostListItem>>(`/api/dashboard/support-community/posts/list${toQueryString(query)}`)
 }
 
 export function fetchCommunityPostAdmin(id: number) {

@@ -25,14 +25,15 @@ func BuildUserResponse(item *models.User, options UserBuildOptions) *response.Us
 		return nil
 	}
 	ret := &response.UserResponse{
-		ID:          item.ID,
-		Username:    item.Username,
-		Nickname:    item.Nickname,
-		Avatar:      item.Avatar,
-		UserType:    item.UserType,
-		Status:      item.Status,
-		LastLoginAt: utils.FormatTimePtr(item.LastLoginAt),
-		LastLoginIP: item.LastLoginIP,
+		ID:            item.ID,
+		Username:      item.Username,
+		Nickname:      item.Nickname,
+		Avatar:        item.UserAvatarURL(),
+		AvatarAssetID: item.UserAvatarAssetID(),
+		UserType:      item.UserType,
+		Status:        item.Status,
+		LastLoginAt:   utils.FormatTimePtr(item.LastLoginAt),
+		LastLoginIP:   item.LastLoginIP,
 	}
 
 	if item.Mobile != nil {

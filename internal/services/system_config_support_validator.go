@@ -8,12 +8,17 @@ import (
 
 	"agent-desk/internal/pkg/dto/request"
 	"agent-desk/internal/pkg/dto/response"
+	"agent-desk/internal/pkg/enums"
 	"agent-desk/internal/pkg/i18nx"
+	"agent-desk/internal/repositories"
 
 	"github.com/mlogclub/simple/common/strs"
+	"github.com/mlogclub/simple/sqls"
 )
 
 type supportNavigationMenuValidator struct{}
+
+type supportAICustomerServiceConfigValidator struct{}
 
 func (supportNavigationMenuValidator) Validate(raw json.RawMessage) (json.RawMessage, []response.ConfigFieldError, error) {
 	var input []request.SupportNavigationMenuItemRequest
@@ -29,6 +34,53 @@ func (supportNavigationMenuValidator) Validate(raw json.RawMessage) (json.RawMes
 		return nil, nil, err
 	}
 	return normalized, nil, nil
+}
+
+func (supportAICustomerServiceConfigValidator) Validate(raw json.RawMessage) (json.RawMessage, []response.ConfigFieldError, error) {
+	var input request.SupportAICustomerServiceConfigRequest
+	if err := json.Unmarshal(raw, &input); err != nil {
+		return nil, []response.ConfigFieldError{configFieldError("aiCustomerService", "invalid_json", "error.supportConfig.aiCustomerServiceInvalidJSON")}, nil
+	}
+	cfg, fieldErrors := normalizeSupportAICustomerServiceConfig(input)
+	if len(fieldErrors) > 0 {
+		return nil, fieldErrors, nil
+	}
+	normalized, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	return normalized, nil, nil
+}
+
+func normalizeSupportAICustomerServiceConfig(input request.SupportAICustomerServiceConfigRequest) (response.SupportAICustomerServiceConfigResponse, []response.ConfigFieldError) {
+	cfg := response.SupportAICustomerServiceConfigResponse{
+		Enabled:   input.Enabled,
+		ChannelID: strings.TrimSpace(input.ChannelID),
+	}
+	if !cfg.Enabled {
+		return cfg, nil
+	}
+	if cfg.ChannelID == "" {
+		return cfg, []response.ConfigFieldError{configFieldError("aiCustomerService.channelId", "required", "error.supportConfig.aiCustomerServiceChannelRequired")}
+	}
+	channel := repositories.ChannelRepository.GetByChannelID(sqls.DB(), cfg.ChannelID)
+	if channel == nil || channel.Status == enums.StatusDeleted {
+		return cfg, []response.ConfigFieldError{configFieldError("aiCustomerService.channelId", "not_found", "error.supportConfig.aiCustomerServiceChannelNotFound")}
+	}
+	if channel.ChannelType != enums.ChannelTypeWeb {
+		return cfg, []response.ConfigFieldError{configFieldError("aiCustomerService.channelId", "type_invalid", "error.supportConfig.aiCustomerServiceChannelTypeInvalid")}
+	}
+	if channel.Status != enums.StatusOk {
+		return cfg, []response.ConfigFieldError{configFieldError("aiCustomerService.channelId", "disabled", "error.supportConfig.aiCustomerServiceChannelDisabled")}
+	}
+	aiAgent := repositories.AIAgentRepository.Get(sqls.DB(), channel.AIAgentID)
+	if aiAgent == nil || aiAgent.Status != enums.StatusOk {
+		return cfg, []response.ConfigFieldError{configFieldError("aiCustomerService.channelId", "agent_disabled", "error.supportConfig.aiCustomerServiceAgentDisabled")}
+	}
+	if aiAgent.PublishedRevisionID <= 0 {
+		return cfg, []response.ConfigFieldError{configFieldError("aiCustomerService.channelId", "agent_unpublished", "error.supportConfig.aiCustomerServiceAgentUnpublished")}
+	}
+	return cfg, nil
 }
 
 func normalizeSupportNavigationMenu(input []request.SupportNavigationMenuItemRequest) ([]response.SupportNavigationMenuItemResponse, []response.ConfigFieldError) {
@@ -167,4 +219,8 @@ func defaultSupportNavigationMenu() []response.SupportNavigationMenuItemResponse
 		{ID: "docs", Title: i18nx.Get("systemConfig.support.navigationMenu.default.docs"), URL: "/support/docs", SortNo: 20, Visible: true},
 		{ID: "community", Title: i18nx.Get("systemConfig.support.navigationMenu.default.community"), URL: "/support/community/posts", SortNo: 30, Visible: true},
 	}
+}
+
+func defaultSupportAICustomerServiceConfig() response.SupportAICustomerServiceConfigResponse {
+	return response.SupportAICustomerServiceConfigResponse{}
 }

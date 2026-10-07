@@ -241,7 +241,8 @@ func PostAnyList(ctx *gin.Context) {
 		params.QueryFilter{ParamName: "status"},
 		params.QueryFilter{ParamName: "title", Op: params.Like},
 	).Desc("id"))
-	httpx.WriteJSON(ctx, &web.PageResult{Results: buildDashboardPosts(list), Page: paging})
+	data := services.SupportService.LoadCommunityResponseData(list, nil, nil)
+	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildPostList(list, data.Categories, data.Users), Page: paging})
 }
 
 func PostGetBy(ctx *gin.Context) {
@@ -259,7 +260,12 @@ func PostGetBy(ctx *gin.Context) {
 		return
 	}
 	comments := repositories.CommentRepository.Find(sqls.DB(), sqls.NewCnd().Eq("post_id", id).Desc("is_accepted").Asc("id"))
-	httpx.WriteJSON(ctx, response.PostDetailResponse{Post: *builders.BuildPost(post, dashboardCategoryName(post.CategoryID), dashboardSupportUser(post.UserID)), Comments: buildDashboardComments(comments)})
+	data := services.SupportService.LoadCommunityResponseData([]models.Post{*post}, comments, nil)
+	categoryName := ""
+	if category := data.Categories[post.CategoryID]; category != nil {
+		categoryName = category.Name
+	}
+	httpx.WriteJSON(ctx, response.PostDetailResponse{Post: *builders.BuildPost(post, categoryName, data.Users[post.UserID]), Comments: buildDashboardComments(comments, data.Users)})
 }
 
 func PostPostModerate(ctx *gin.Context) {
@@ -305,7 +311,8 @@ func CommentPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildComment(item, operator.Nickname))
+	data := services.SupportService.LoadCommunityResponseData(nil, []models.Comment{*item}, nil)
+	httpx.WriteJSON(ctx, builders.BuildComment(item, data.Users[item.AuthorID]))
 }
 
 func CommentPostModerate(ctx *gin.Context) {
@@ -331,45 +338,12 @@ func buildDashboardDocPages(list []models.DocPage, includeContent bool) []respon
 	return results
 }
 
-func buildDashboardPosts(list []models.Post) []response.PostResponse {
-	results := make([]response.PostResponse, 0, len(list))
-	for _, item := range list {
-		if resp := builders.BuildPost(&item, dashboardCategoryName(item.CategoryID), dashboardSupportUser(item.UserID)); resp != nil {
-			results = append(results, *resp)
-		}
-	}
-	return results
-}
-
-func buildDashboardComments(list []models.Comment) []response.CommentResponse {
+func buildDashboardComments(list []models.Comment, users map[int64]*models.User) []response.CommentResponse {
 	results := make([]response.CommentResponse, 0, len(list))
 	for _, item := range list {
-		if resp := builders.BuildComment(&item, dashboardCommentAuthorName(item)); resp != nil {
+		if resp := builders.BuildComment(&item, users[item.AuthorID]); resp != nil {
 			results = append(results, *resp)
 		}
 	}
 	return results
-}
-
-func dashboardCategoryName(id int64) string {
-	item := repositories.CategoryRepository.Get(sqls.DB(), id)
-	if item == nil {
-		return ""
-	}
-	return item.Name
-}
-
-func dashboardSupportUser(id int64) *models.User {
-	return repositories.UserRepository.Get(sqls.DB(), id)
-}
-
-func dashboardCommentAuthorName(item models.Comment) string {
-	user := repositories.UserRepository.Get(sqls.DB(), item.AuthorID)
-	if user == nil {
-		return ""
-	}
-	if user.Nickname != "" {
-		return user.Nickname
-	}
-	return user.Username
 }
