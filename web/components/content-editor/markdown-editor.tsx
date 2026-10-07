@@ -10,7 +10,7 @@ import {
 } from "react"
 import { Maximize2Icon, Minimize2Icon } from "lucide-react"
 import { config, MdEditor, NormalToolbar, type ExposeParam } from "md-editor-rt"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 
 import "./markdown-editor.css"
 

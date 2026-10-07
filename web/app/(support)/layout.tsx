@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import Script from "next/script"
 
 import { ImageLightboxProvider } from "@/components/image-lightbox"
 import { ConfirmProvider } from "@/components/confirm-provider"
@@ -8,6 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import { AppI18nProvider } from "@/i18n/provider"
+import { themeInitializerScript } from "@/lib/theme"
 
 import "./support.css"
 import "md-editor-rt/lib/style.css"
@@ -37,6 +39,9 @@ export default function SupportRootLayout({
       <body
         className="antialiased font-sans"
       >
+        <Script id="support-theme-initializer" strategy="beforeInteractive">
+          {themeInitializerScript}
+        </Script>
         <AppI18nProvider>
           <ThemeProvider>
             <SupportAuthProvider>

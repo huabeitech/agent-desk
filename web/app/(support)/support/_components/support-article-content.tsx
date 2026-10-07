@@ -1,7 +1,7 @@
 "use client"
 
 import { Children, isValidElement, useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import rehypeHighlight from "rehype-highlight"
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown"
 import remarkBreaks from "remark-breaks"
