@@ -100,6 +100,10 @@ Default administrator account:
 
 > Before exposing the system to the public internet or a team environment, change the default administrator password and configure independent authentication, session, and model secrets.
 
+## One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/AgentDesk/)
+
 ## Local Development
 
 ### Requirements
