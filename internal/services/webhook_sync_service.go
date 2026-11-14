@@ -33,7 +33,11 @@ func (s *webhookSyncService) VerifySignature(payload []byte, signature string) b
 		secret = strings.TrimSpace(config.Current().OIDC.ClientSecret)
 	}
 	if secret == "" {
-		return true
+		// No signing secret configured: the sync endpoints cannot be
+		// authenticated, so reject every request rather than accept it. An
+		// empty secret used to pass here, which left the unauthenticated
+		// org-sync webhook open to anyone.
+		return false
 	}
 
 	sig := strings.TrimSpace(signature)
